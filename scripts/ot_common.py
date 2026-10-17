@@ -7,7 +7,7 @@
 #           the gene themes and population labels of the CTEPH literature
 #           (shared by the knowledge base and the workbook).
 #           No paths, no project constants: every script receives its inputs
-#           on the command line from cteph_knowledge_graph.nf.
+#           on the command line from main.nf.
 # ---------------------------------------------------------------------------
 import datetime as dt
 import gzip

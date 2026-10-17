@@ -14,10 +14,10 @@ echo "═══ 1. syntax ═══"
 # Nextflow: the site's dsl2 env when it exists (override with NXF_BIN=<dir>), else whatever is on PATH
 NXF_BIN=${NXF_BIN:-/path/to/nextflow/bin}
 [ -d "$NXF_BIN" ] && export PATH=$NXF_BIN:$PATH
-out=$(nextflow lint cteph_knowledge_graph.nf nextflow.config 2>&1)
+out=$(nextflow lint main.nf nextflow.config 2>&1)
 echo "$out" | grep -q '❌'; ck "nextflow lint: no errors" $([ $? -eq 1 ] && echo 0 || echo 1)
 echo "$out" | grep -q '⚠️'; ck "nextflow lint: no warnings" $([ $? -eq 1 ] && echo 0 || echo 1)
-PYBIN=$(grep -oE "params\.python\s*=\s*'[^']+'" cteph_knowledge_graph.nf | grep -oE "'[^']+'$" | tr -d "'")
+PYBIN=$(grep -oE "params\.python\s*=\s*'[^']+'" main.nf | grep -oE "'[^']+'$" | tr -d "'")
 export PATH="$(dirname "$PYBIN"):$PATH"
 export PYTHONDONTWRITEBYTECODE=1
 bad=0; for f in scripts/*.py; do python3 -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$f" 2>/dev/null || bad=1; done
@@ -26,12 +26,12 @@ ck "every Python script compiles ($(ls scripts/*.py | wc -l))" $bad
 ck "params.python ($PYBIN) imports xlsxwriter, openpyxl, pandas, yaml" $?
 
 echo "═══ 2. site rules ═══"
-grep -qE '^\s*(cpus|memory)\s' cteph_knowledge_graph.nf nextflow.config; ck "no cpus/memory directive" $([ $? -eq 1 ] && echo 0 || echo 1)
+grep -qE '^\s*(cpus|memory)\s' main.nf nextflow.config; ck "no cpus/memory directive" $([ $? -eq 1 ] && echo 0 || echo 1)
 grep -q "errorStrategy = 'finish'" nextflow.config; ck "errorStrategy = 'finish'" $?
 grep -nE "'/(LARGE[01]|home)/" scripts/*.py >/dev/null; ck "no hard-coded paths in scripts" $([ $? -eq 1 ] && echo 0 || echo 1)
 python3 - <<'EOF'
 import re, sys, pathlib
-nf = pathlib.Path('cteph_knowledge_graph.nf').read_text()
+nf = pathlib.Path('main.nf').read_text()
 bodies = dict(re.findall(r'process\s+(\w+)\s*\{(.*?)\n\}', nf, re.S))
 bad = [p for p, b in bodies.items() if "executor 'local'" not in b]
 for p in bad:
@@ -44,7 +44,7 @@ ck "every process local" $?
 echo "═══ 3. every process's flags are accepted by its script ═══"
 python3 - <<'PY'
 import re, subprocess, sys, pathlib
-nf = pathlib.Path('cteph_knowledge_graph.nf').read_text()
+nf = pathlib.Path('main.nf').read_text()
 bodies = dict(re.findall(r'process\s+(\w+)\s*\{(.*?)\n\}', nf, re.S))
 helper = re.search(r'def llmArgs\(\) \{(.*?)\n\}', nf, re.S).group(1)
 PAIRS = {'FETCH_CTEPH': 'fetch.py', 'SEED_PUBMED': 'pubmed.py', 'RESOLVE': 'resolve.py', 'FETCH_DISEASE': 'fetch.py',
@@ -102,7 +102,7 @@ sys.path.insert(0, 'scripts')
 from ot_common import BASIS_TYPES, load_choices
 cfg = yaml.safe_load(open('config/choices.yaml'))
 refs = cfg.get('references') or {}
-nf = open('cteph_knowledge_graph.nf').read()
+nf = open('main.nf').read()
 block = re.search(r'def runParams = \[(.*?)\]', nf, re.S).group(1)
 run_keys = set(re.findall(r'(\w+):', block))
 bad = 0
@@ -170,7 +170,7 @@ for f in README.md docs/METHODS.md docs/OUTPUTS.md docs/STUDY_NOTES.md; do [ -s 
 
 echo "═══ 5. language-model isolation ═══"
 if [ -n "$NO_LLM" ]; then echo "  (skipped: NO_LLM)"; else
-CL=$(grep -oE "params\.claude\s*=\s*'[^']+'" cteph_knowledge_graph.nf | grep -oE "'[^']+'$" | tr -d "'")
+CL=$(grep -oE "params\.claude\s*=\s*'[^']+'" main.nf | grep -oE "'[^']+'$" | tr -d "'")
 python3 - "$CL" <<'EOF'
 import sys, tempfile
 sys.path.insert(0, 'scripts')

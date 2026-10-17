@@ -1,8 +1,29 @@
-# CTEPH knowledge graph
+# DiseaseLens
 
-A dated, reproducible knowledge graph of chronic thromboembolic pulmonary hypertension (CTEPH, [`EFO_0022954`](https://platform.opentargets.org/disease/EFO_0022954)). It covers the genes with genetic evidence for CTEPH, the genetic studies behind them, the conditions related to CTEPH, and the genetics those conditions share with it.
+**Dated, traceable knowledge graphs of a disease's genetics and of the conditions related to it.**
 
-The graph is built from external knowledge only: the Open Targets Platform, the published CTEPH GWAS (Liley et al., 2024), PubMed and Europe PMC. It was built as background for interpreting the signals of a CTEPH whole-genome sequencing study, and none of that study's results enter the graph. Each run writes one snapshot, named by its fetch date. Every choice (threshold, list, grouping, rule) is recorded with its value and its basis, and every statement links to its publication or database record.
+DiseaseLens reviews what is known about the genetics of one disease, from external sources only, and builds it into a knowledge graph:
+- **genes:** the genes with genetic evidence for the disease, ranked on an evidence ladder;
+- **studies:** the genetic studies behind those genes, found in PubMed and extracted with every item checked against its source text;
+- **related conditions:** the conditions related to the disease, by clinical evidence, the disease ontology, colocalization or lead-variant overlap with its GWAS signals;
+- **shared genetics:** the GWAS regions and genes the disease shares with those conditions, and their own genetics;
+- **context:** the mechanisms described in the literature, and the evidence from East Asian populations.
+
+The sources are the Open Targets Platform, published GWAS, PubMed and Europe PMC.
+
+Each run writes a snapshot, named by its fetch date. A snapshot can be repeated and is compared with the previous one. Every choice (threshold, list, grouping, rule) is recorded with its value and its basis, and every statement links to its publication or database record.
+
+A snapshot is delivered as:
+- an offline viewer;
+- a workbook organized by question;
+- a knowledge base with figures;
+- the graph as tables, JSON and SQLite.
+
+**Status.** DiseaseLens is meant for any disease. Its first application is chronic thromboembolic pulmonary hypertension (CTEPH, [`EFO_0022954`](https://platform.opentargets.org/disease/EFO_0022954)), and it is currently configured for it. To apply it to another disease, supply that disease's configuration ([Configure a disease](#configure-a-disease)). Some labels, output names and model prompts still name CTEPH; making them follow the configured disease is the next step ([Roadmap](#roadmap)).
+
+## First application: CTEPH
+
+The CTEPH graph was built as background for interpreting the signals of a CTEPH whole-genome sequencing study; none of that study's results enter the graph.
 
 **Current snapshot: [2026-10-16](results/snapshots/2026-10-16/README.md)**: Open Targets 26.09; PubMed searched up to 2026-10-16; every publication checked in PubMed on 2026-10-17.
 
@@ -10,7 +31,7 @@ The graph is built from external knowledge only: the Open Targets Platform, the 
 |---|---|---|---|---|
 | [`cteph_knowledge_graph.html`](results/snapshots/2026-10-16/cteph_knowledge_graph.html) | [`.xlsx`](results/snapshots/2026-10-16/cteph_knowledge_graph_2026-10-16.xlsx) | [`08.knowledge`](results/snapshots/2026-10-16/08.knowledge/cteph_knowledge_graph.md) | [`05.graph`](results/snapshots/2026-10-16/05.graph/README.md) | [`.pptx`](deck/cteph_knowledge_graph.pptx) · [PDF](deck/cteph_knowledge_graph.preview.pdf) |
 
-**Contents**
+**Contents of this section and the rest of the page**
 - [Key results](#key-results-snapshot-2026-10-16)
   1. [CTEPH genes and the strength of their evidence](#1-cteph-genes-and-the-strength-of-their-evidence)
   2. [The published CTEPH GWAS regions](#2-the-published-cteph-gwas-regions)
@@ -22,9 +43,9 @@ The graph is built from external knowledge only: the Open Targets Platform, the 
   8. [Genetics of the related conditions, mechanisms and East Asian evidence](#8-genetics-of-the-related-conditions-mechanisms-and-east-asian-evidence)
   9. [Curation](#9-curation)
   10. [Caveats](#10-caveats)
-- [The graph](#the-graph) · [Open the snapshot](#open-the-snapshot) · [How it is built](#how-it-is-built) · [Requirements](#requirements) · [Run](#run) · [Update the configuration](#update-the-configuration) · [Repository layout](#repository-layout) · [Data sources and reuse](#data-sources-and-reuse)
+- [The graph](#the-graph) · [Open the snapshot](#open-the-snapshot) · [How it is built](#how-it-is-built) · [Requirements](#requirements) · [Run](#run) · [Configure a disease](#configure-a-disease) · [Roadmap](#roadmap) · [Repository layout](#repository-layout) · [Data sources and reuse](#data-sources-and-reuse)
 
-## Key results (snapshot 2026-10-16)
+### Key results (snapshot 2026-10-16)
 
 The workbook, the knowledge base and the viewer answer twelve questions in four parts:
 - **A. CTEPH genetics:** genes and their evidence; what each study reports; the studies and their methods.
@@ -34,7 +55,7 @@ The workbook, the knowledge base and the viewer answer twelve questions in four 
 
 The sections below summarize the answers for this snapshot. Each one names the workbook sheet and the knowledge-base section that hold its evidence.
 
-### 1. CTEPH genes and the strength of their evidence
+#### 1. CTEPH genes and the strength of their evidence
 
 ![Evidence level by function of the 67 CTEPH genes](results/snapshots/2026-10-16/09.figures/evidence_grid.png)
 
@@ -68,7 +89,7 @@ Each gene takes the strongest level that applies:
 
   Each function has a cited basis in sheet 11 of the workbook.
 
-### 2. The published CTEPH GWAS regions
+#### 2. The published CTEPH GWAS regions
 
 The CTEPH GWAS (Liley et al., 2024) analyzed 1,907 European cases and 10,363 controls. Open Targets holds no summary statistics for it. It holds 7 of the 9 lead variants and a CTEPH credible set at 3 regions (*ABO*, *FGG*, *F11*).
 
@@ -86,7 +107,7 @@ The CTEPH GWAS (Liley et al., 2024) analyzed 1,907 European cases and 10,363 con
 
 The genes are named as in the publication. At the *FGG* region, the top locus-to-gene gene of Open Targets is *FGA* (score 0.44); it is shown beside the region but does not name it. V is the conditional false discovery rate of the co-analysis with pulmonary embolism, the basis of G\*. Workbook sheet 5 and knowledge base section 2.1 hold the full table.
 
-### 3. What the genetic studies of CTEPH report
+#### 3. What the genetic studies of CTEPH report
 
 ![Results of the genetic studies of CTEPH, gene by gene](results/snapshots/2026-10-16/09.figures/literature_genes.png)
 
@@ -109,7 +130,7 @@ It was not associated in one study (Bereczky 2025).
 
 **PAH genes.** Rare *BMPR2* variants were identified in three studies and not associated in two. Other PAH genes (*ACVRL1*, *ENG*, *GDF2*, *SOX17*) were identified in sequencing studies without an association test.
 
-### 4. The genetic studies
+#### 4. The genetic studies
 
 ![The genetic studies of CTEPH by year, design and place](results/snapshots/2026-10-16/09.figures/genetic_studies.png)
 
@@ -134,7 +155,7 @@ Every extracted gene, variant, number and quote was checked against its source t
 - **Size.** Most studies are small: the median is 50 cases where the abstract states it, with a range of 1–1,970.
 - **Methods.** The methods of each study (platform, sequencing, quality control, statistics, covariates, multiple testing) were taken from the open-access Methods section for 19 studies and from the abstract for 30.
 
-### 5. Conditions related to CTEPH
+#### 5. Conditions related to CTEPH
 
 <img src="results/snapshots/2026-10-16/09.figures/condition_map.png" alt="CTEPH and its related conditions" width="760">
 
@@ -175,7 +196,7 @@ Every extracted gene, variant, number and quote was checked against its source t
   - ventriculoatrial shunts and infected pacemakers (OR 76).
 - **Against pulmonary embolism survivors,** most of these factors were not enriched; only splenectomy and non-O blood group showed a trend (Dodson 2022). The graph keeps such contrary results.
 
-### 6. CTEPH GWAS regions shared with related conditions
+#### 6. CTEPH GWAS regions shared with related conditions
 
 ![Related conditions by the CTEPH GWAS regions they share](results/snapshots/2026-10-16/09.figures/shared_regions.png)
 
@@ -211,7 +232,7 @@ The count is reported at three levels:
 
 Several studies of one trait each count: different consortia, biobanks or data releases, which can share participants. A count therefore shows how consistently a region is shared across studies, not a number of independent replications.
 
-### 7. Genes shared by CTEPH and related conditions
+#### 7. Genes shared by CTEPH and related conditions
 
 <img src="results/snapshots/2026-10-16/09.figures/gene_map.png" alt="Genes studied in CTEPH by the related conditions" width="760">
 
@@ -232,7 +253,7 @@ Several studies of one trait each count: different consortia, biobanks or data r
 - ***F8*** was not associated with CTEPH in its one study, yet it is a GWAS gene of venous thromboembolism, deep vein thrombosis and pulmonary embolism.
 - **Genes not yet studied in CTEPH.** 115 genes that no genetic study of CTEPH has examined have genetic evidence in three or more related conditions. The most widely shared are *SH2B3* and *PLCG2* (eight conditions each), and *PROCR*, *APOE* and *GRK5* (seven each).
 
-### 8. Genetics of the related conditions, mechanisms and East Asian evidence
+#### 8. Genetics of the related conditions, mechanisms and East Asian evidence
 
 **Genetics of the related conditions** (workbook sheet 7):
 - 514 GWAS studies (53 with a mostly East Asian sample; median sample size 205,219);
@@ -249,7 +270,7 @@ Several studies of one trait each count: different consortia, biobanks or data r
 - 10 items of clinical evidence come from East Asian populations;
 - 53 GWAS of related conditions have a mostly East Asian sample.
 
-### 9. Curation
+#### 9. Curation
 
 Deterministic rules ([`config/curation.yaml`](config/curation.yaml)) decide what the graph holds, and every rule applied is logged (workbook sheet 10; knowledge base section 10). No rule calls a language model.
 
@@ -261,7 +282,7 @@ Deterministic rules ([`config/curation.yaml`](config/curation.yaml)) decide what
 | What a finding is about | 15 findings are not about CTEPH itself: 11 concern a phenotype or outcome within CTEPH, 2 another trait with CTEPH as the exposure, 1 a functional experiment and 1 a background statement. |
 | Text-mined links | 30 gene–word corrections drop 101 links mapped to the wrong gene. The largest is sGC (soluble guanylate cyclase) mapped to *SGCB*, in 51 publications. |
 
-### 10. Caveats
+#### 10. Caveats
 
 - **Association, not causation.** A relation to CTEPH is evidence of association (clinical, ontology or shared genetic signal), not of causation. Many classic risk factors were found against non-thromboembolic PH controls.
 - **G\* regions** are genome-wide significant only when the similarity with pulmonary embolism is leveraged, so part of their signal is that of pulmonary embolism.
@@ -374,16 +395,16 @@ Sheet 11 of the workbook and section 11 of the knowledge base print the choices 
 - The `claude` CLI (Claude Code; tested with 2.1.220). It is used only for records not yet in `cache/llm/`. `--LlmOffline true` never calls it.
 - For the deck only: Node.js with `pptxgenjs`, and LibreOffice for the PDF preview.
 
-The site paths of the tools are the defaults in the site configuration at the top of `cteph_knowledge_graph.nf`. Override them on the command line:
+The site paths of the tools are the defaults in the site configuration at the top of `main.nf`. Override them on the command line:
 - `--python <python3 with the packages>`;
 - `--claude <claude CLI>`.
 
 ## Run
 
 ```bash
-git clone https://github.com/ZhaoTie-re/cteph_knowledge_graph.git && cd cteph_knowledge_graph
+git clone https://github.com/ZhaoTie-re/DiseaseLens.git && cd DiseaseLens
 ./verify.sh                                     # pre-flight, sections 1-5 (NO_LLM=1 skips the one model probe)
-nextflow run cteph_knowledge_graph.nf --FetchDate $(date +%F) -ansi-log false
+nextflow run main.nf --FetchDate $(date +%F) -ansi-log false
 ./verify.sh                                     # post-run, sections 6-10, on the newest snapshot
 ```
 
@@ -391,29 +412,53 @@ nextflow run cteph_knowledge_graph.nf --FetchDate $(date +%F) -ansi-log false
 - **`--Rebuild true --FetchDate <date>`** re-derives an existing snapshot from its saved sources (00–02) after a change to the curation, tables or products. Nothing is fetched again, except the PubMed publication records once if they are missing, and no model is called.
 - **`--LlmOffline true`** uses cached model answers only.
 - **A smoke run** adds `--LlmLimit 10 --MaxThemes 2 --results_root <scratch>`.
-- **`nextflow lint cteph_knowledge_graph.nf nextflow.config`** is the safe syntax check. `nextflow run --help` would launch the pipeline.
+- **`nextflow lint main.nf nextflow.config`** is the safe syntax check. `nextflow run --help` would launch the pipeline.
 - **On a cluster whose compute nodes have no internet access** (as on the one where this was built), launch from the login node. `verify.sh` puts the site's Nextflow environment on `PATH` when it exists; set `NXF_BIN=<dir>` to use another one.
 
-## Update the configuration
+## Configure a disease
 
-| File | What it holds | Notes |
+A disease is described by two parameters and five files. The CTEPH values are the defaults.
+
+| What | Where | CTEPH (first application) |
 |---|---|---|
-| [`config/curation.yaml`](config/curation.yaml) | exclusion rules, variant names, findings not about CTEPH, text-mining corrections, design classes, country names | An entry that matches nothing stops the build. A new finding with outcome words is logged for review in `03.curated/curation_log.tsv`. |
-| [`config/related_conditions.yaml`](config/related_conditions.yaml) | the curated clinical relations | Each item needs a PMID, a verbatim quote from its title or abstract, and a one-line statement. The build stops if a quote is not in the abstract, or if it cites a publication the curation leaves out. |
-| [`config/gene_themes.yaml`](config/gene_themes.yaml) | the functions (gene themes) | Each theme needs a basis and references. |
-| [`config/cteph_gwas.yaml`](config/cteph_gwas.yaml) | the published CTEPH regions | Copied from Table 1 of the publication. |
-| [`config/choices.yaml`](config/choices.yaml) | every choice and its basis | A new parameter or rule needs an entry, or `verify.sh` fails. |
+| the disease | `--DiseaseCore` | `EFO_0022954` |
+| the PubMed search for its genetic studies | `--PubmedQuery` | CTEPH in title or abstract, and a genetic-study term |
+| curated clinical relations to other conditions | `--seed` ([`config/related_conditions.yaml`](config/related_conditions.yaml)) | 27 conditions, each statement with a PMID and a verbatim quote |
+| the published GWAS regions of the disease | `--cteph_gwas` ([`config/cteph_gwas.yaml`](config/cteph_gwas.yaml)) | the nine regions of Liley et al. (2024), Table 1 |
+| the functions (gene themes) of its genes | `--gene_themes` ([`config/gene_themes.yaml`](config/gene_themes.yaml)) | eight themes, each with its basis and references |
+| the curation rules | `--curation` ([`config/curation.yaml`](config/curation.yaml)) | exclusion rules, variant names, findings not about the disease itself, text-mining corrections, design classes, country names |
+| every choice and its basis | `--choices` ([`config/choices.yaml`](config/choices.yaml)) | 49 choices |
+
+Everything else is not specific to a disease:
+- the Open Targets queries;
+- colocalization and lead-variant overlap;
+- the curated (Mendelian) gene evidence;
+- PubMed screening and extraction;
+- the curation engine;
+- the graph and the products.
+
+Rules for the files:
+- **Clinical relations.** Each item needs a PMID, a verbatim quote from its title or abstract, and a one-line statement. The build stops if a quote is not in the abstract, or if it cites a publication the curation leaves out.
+- **Curation rules.** An entry that matches nothing stops the build. A new finding with outcome words is logged for review in `03.curated/curation_log.tsv`.
+- **Published regions.** Copy them from the publication.
+- **Choices.** A new parameter or rule needs an entry in `config/choices.yaml`, or `verify.sh` fails.
+
+## Roadmap
+
+- **A disease profile.** One folder per disease, holding its identifier, PubMed query, clinical relations, published regions, gene themes and curation rules, selected with one parameter.
+- **Names from the profile.** The disease name in labels, table and file names, figures and language-model prompts comes from the profile, instead of "CTEPH".
+- **A second disease** as a test of the generalization.
 
 ## Repository layout
 
 | Path | Content |
 |---|---|
-| `cteph_knowledge_graph.nf`, `nextflow.config` | the pipeline and its execution profile |
+| `main.nf`, `nextflow.config` | the pipeline and its execution profile |
 | `verify.sh` | pre-flight and post-run checks (read-only) |
-| `config/` | the curated inputs and rules (above) |
+| `config/` | the configuration of the disease (currently CTEPH; [Configure a disease](#configure-a-disease)) |
 | `scripts/` | the step scripts (below), the query tool `kg.py`, and `plot_style.py` (the figure style, vendored) |
 | `docs/` | [METHODS.md](docs/METHODS.md) (how each item is derived), [OUTPUTS.md](docs/OUTPUTS.md) (every file of a snapshot), [STUDY_NOTES.md](docs/STUDY_NOTES.md) (design decisions and their history) |
-| `deck/` | the slides on the build and the current snapshot, generated from the snapshot ([deck/README.md](deck/README.md)) |
+| `deck/` | the slides on the build and the CTEPH snapshot, generated from the snapshot ([deck/README.md](deck/README.md)) |
 | `results/` | `latest.json` and `snapshots/<FetchDate>/` |
 | `cache/llm/` | the cached language-model answers, kept across snapshots |
 

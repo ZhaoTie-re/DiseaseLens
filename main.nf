@@ -1,12 +1,13 @@
 nextflow.enable.dsl = 2
 
 // ═════════════════════════════════════════════════════════════════════════════
-// cteph_knowledge_graph — CTEPH, the conditions related to it, and the genetics
-// of both, as a dated snapshot that can be repeated (one run per --FetchDate,
-// each compared with the snapshot before it).
+// DiseaseLens — a disease, the conditions related to it, and the genetics of
+// both, as a dated, traceable knowledge graph that can be repeated (one run per
+// --FetchDate, each compared with the snapshot before it). Configured for its
+// first application, CTEPH (config/, --DiseaseCore, --PubmedQuery).
 //
 // External knowledge only: Open Targets (GraphQL), PubMed (E-utilities) and
-// Europe PMC; nothing of our own CTEPH cohort's results. One line of stages:
+// Europe PMC; nothing of our own cohort's results. One line of stages:
 //   sources    00  Open Targets (CTEPH; each related condition), PubMed (the
 //                  genetic-study search, the seed), Europe PMC Methods texts, and
 //                  the PubMed record of every publication the graph uses
@@ -649,14 +650,14 @@ JSON
 workflow {
     def fetchDate = params.FetchDate ? params.FetchDate.toString() : ''
     if (!(fetchDate ==~ /\d{4}-\d{2}-\d{2}/)) {
-        error "cteph_knowledge_graph | --FetchDate YYYY-MM-DD is required (the snapshot name), got '${fetchDate}'"
+        error "DiseaseLens | --FetchDate YYYY-MM-DD is required (the snapshot name), got '${fetchDate}'"
     }
     if (!params.out_dir.toString().endsWith("/snapshots/${fetchDate}")) {
-        error "cteph_knowledge_graph | out_dir ${params.out_dir} is not the snapshot of ${fetchDate}"
+        error "DiseaseLens | out_dir ${params.out_dir} is not the snapshot of ${fetchDate}"
     }
     def smoke = (params.LlmLimit as int) > 0 || (params.MaxThemes as int) > 0
     if (smoke && !fetchDate.endsWith('-smoke') && !params.out_dir.toString().contains('smoke')) {
-        log.warn "cteph_knowledge_graph | smoke settings (LlmLimit ${params.LlmLimit}, MaxThemes ${params.MaxThemes}): this snapshot is partial"
+        log.warn "DiseaseLens | smoke settings (LlmLimit ${params.LlmLimit}, MaxThemes ${params.MaxThemes}): this snapshot is partial"
     }
     def root = file(params.snapshots_root)
     def earlier = root.exists()
@@ -665,7 +666,7 @@ workflow {
         : []
     def earlierCsv = earlier.join(',')
     def workbook = "cteph_knowledge_graph_${fetchDate}.xlsx"
-    log.info "cteph_knowledge_graph | snapshot ${fetchDate} | earlier snapshots: ${earlier ? earlierCsv : 'none'} | out ${params.out_dir}"
+    log.info "DiseaseLens | snapshot ${fetchDate} | earlier snapshots: ${earlier ? earlierCsv : 'none'} | out ${params.out_dir}"
 
     def lib = script_file('ot_common.py')
     def llm = script_file('llm.py')
@@ -686,7 +687,7 @@ workflow {
     if (rebuild) {
         // the saved sources of the snapshot: nothing is fetched or extracted again
         def d = params.out_dir
-        log.info "cteph_knowledge_graph | rebuild of ${fetchDate} from its saved sources; no model call"
+        log.info "DiseaseLens | rebuild of ${fetchDate} from its saved sources; no model call"
         raw        = channel.value(file("${d}/00.raw", checkIfExists: true))
         diseases   = channel.fromPath("${d}/00.raw/diseases/disease.*.json.gz", checkIfExists: true).collect()
         searchRecs = channel.value(file("${d}/00.pubmed/pubmed_search.json.gz", checkIfExists: true))

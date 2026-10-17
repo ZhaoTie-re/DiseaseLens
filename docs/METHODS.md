@@ -1,5 +1,7 @@
 # Methods
 
+The methods of DiseaseLens, described for its first application, CTEPH. The steps are the same for any disease configured as in the README ("Configure a disease"); where CTEPH appears below, read the configured disease.
+
 Every threshold, list and grouping named here is also an entry of `config/choices.yaml`, the choices registry, with its value in the run and its basis (section 8). The knowledge base (section 11) and the workbook (sheet 11) print the registry with each snapshot.
 
 The pipeline runs in one line of stages, each writing one numbered folder of the snapshot: sources (00), related conditions (01), the extracted genetic studies (02), curation (03), long tables (04), the graph (05), then the products: summaries (06), changes (07), knowledge base (08), figures (09), the workbook, the viewer and the index.
