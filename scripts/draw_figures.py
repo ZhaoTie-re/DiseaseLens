@@ -673,11 +673,13 @@ they are weak evidence of a relation. Shown: {shown} conditions.
 ## shared_regions — which conditions share which CTEPH GWAS region
 Rows: conditions sharing two or more of the nine published CTEPH regions, and the clinically related conditions
 sharing one. Columns: the regions, named as published, with their lead variant, tier and status in Open Targets.
-A filled dot: a GWAS signal of the condition colocalizes with the CTEPH credible set (CLPP ≥ {clpp} or H4 ≥ 0.8;
-color, the strongest CLPP); possible only where Open Targets holds a CTEPH credible set. An open dot: a GWAS
-credible set of the condition contains the CTEPH lead variant (PIP ≥ {clpp}), for regions whose lead variant
-Open Targets holds without a credible set; weaker, since the CTEPH signal is not fine-mapped. Dot size: number
-of GWAS signals. Gray columns: lead variant not in Open Targets, nothing to compare. Rows: {reg_rows};
+A filled dot: a GWAS signal of the condition colocalizes with the CTEPH credible set. The colocalization is
+computed by Open Targets (coloc H4 and eCAVIAR CLPP for each pair of credible sets) and kept here at CLPP ≥ {clpp}
+or H4 ≥ 0.8; color, the strongest CLPP. It is possible only where Open Targets holds a CTEPH credible set. An open
+dot, checked by this pipeline: a GWAS credible set of the condition contains the CTEPH lead variant
+(PIP ≥ {clpp}), for regions whose lead variant Open Targets holds without a credible set; weaker, since the CTEPH
+signal is not fine-mapped. Dot size: number of GWAS signals, the GWAS studies of the condition with such a
+credible set at the region (one per study). Gray columns: lead variant not in Open Targets, nothing to compare. Rows: {reg_rows};
 {reg_coloc} filled and {reg_overlap} open cells.
 
 ## gene_map — genes shared by CTEPH and its related conditions

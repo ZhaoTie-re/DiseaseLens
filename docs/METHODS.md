@@ -61,8 +61,20 @@ A condition enters the graph through at least one kind of evidence. Every relati
    - the parent of CTEPH (pulmonary hypertension);
    - its siblings;
    - the children of pulmonary arterial hypertension.
-3. Colocalization. At a region with a CTEPH credible set, a GWAS credible set of the condition colocalizes with it: eCAVIAR CLPP ≥ 0.01 or coloc H4 ≥ 0.8. In release 26.09 all colocalizations are eCAVIAR on PICS fine-mapping.
-4. Lead-variant overlap (weaker). At a region whose lead variant Open Targets holds without a CTEPH credible set, a GWAS credible set of the condition contains that lead variant with PIP ≥ 0.01 (the same value as the CLPP threshold). Basis: if the CTEPH lead variant were the causal variant, the CLPP of the pair would equal its PIP in the other trait's credible set; without a CTEPH credible set the CTEPH side is not fine-mapped, hence weaker. Overlap is never used at a region with a credible set (the user chose this weaker class, 2026-10-17).
+3. Colocalization, computed by Open Targets and selected here. The pipeline runs no colocalization itself.
+   - **What Open Targets provides.** Open Targets fine-maps GWAS credible sets and, for each pair of overlapping credible sets, reports the coloc posterior H4 and the eCAVIAR CLPP. In release 26.09:
+     - the three CTEPH credible sets (*ABO*, *FGG*, *F11*) are fine-mapped with PICS;
+     - every colocalization carries the method label `COLOC_PIP_ECAVIAR`, with both values.
+   - **What the pipeline does.** `fetch.py` downloads every colocalization of the CTEPH credible sets. `resolve.py` keeps a condition when one of its GWAS credible sets reaches CLPP ≥ 0.01 or H4 ≥ 0.8 with a CTEPH credible set. The thresholds and their basis are in `config/choices.yaml`.
+   - **In this snapshot,** 307 of the 308 rows of `01.conditions/colocalisation.tsv` pass both thresholds, and 1 passes H4 only.
+4. Lead-variant overlap (weaker), computed by this pipeline from the Open Targets credible sets. At a region whose lead variant Open Targets holds without a CTEPH credible set, a GWAS credible set of the condition contains that lead variant with PIP ≥ 0.01 (the same value as the CLPP threshold). Basis: if the CTEPH lead variant were the causal variant, the CLPP of the pair would equal its PIP in the other trait's credible set; without a CTEPH credible set the CTEPH side is not fine-mapped, hence weaker. Overlap is never used at a region with a credible set (the user chose this weaker class, 2026-10-17).
+
+GWAS signal counts. A GWAS signal is one credible set of one GWAS study of the condition that colocalizes with the CTEPH credible set (3) or contains the CTEPH lead variant (4). A study has one such credible set per region (2026-10-16: one exception, at SLC44A2), and every count is a number of distinct GWAS studies (`study_id`).
+- **Per condition and region:** the dot size of the regions figure, and the hover text of sheet 5.
+- **Per condition, across regions:** each study counted once; this is the count in the evidence of the condition (sheet 4, knowledge base section 4).
+- **Per region:** the per-condition counts added up (knowledge base section 5). A study that Open Targets maps to several conditions counts once for each.
+
+Studies of one trait from different consortia, biobanks or releases each count and can share participants, so a count measures consistency across studies, not independent replication.
 
 A relation of the shared-signal kinds is graded by the number of CTEPH regions it shares, by either route. Multi-region relations are stronger: ABO is the region most often shared alone, and a trait sharing only ABO mostly reflects the pleiotropy of ABO.
 
@@ -90,7 +102,7 @@ CTEPH itself:
 - every associated target;
 - its text-mined (Europe PMC) evidence;
 - the targets' Reactome top-level pathways;
-- its GWAS credible sets with all their colocalizations, and the published regions (section 2).
+- its GWAS credible sets with all the colocalizations Open Targets computed for them, and the published regions (section 2).
 
 Completeness. Every list is checked against the count the API reports, and its IDs must be unique. Index/size pages are not stable where the sort key ties (2026-10-16: the 615 CTEPH targets paged by 100 differed from one full page in 10 targets). A list longer than its first page is therefore re-read as one page of its full length.
 

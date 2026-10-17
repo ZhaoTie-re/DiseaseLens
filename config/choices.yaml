@@ -157,8 +157,8 @@ groups:
     format: H4 ≥ {v}
     basis_type: source
     basis: '"COLOC PH4 ≥ 0.8 or eCAVIAR CLPP ≥ 0.01" is the rule of the Open Targets team (preprint, not peer
-      reviewed); the coloc authors called PP4 > 0.75 strong support. In this release every colocalization with a
-      CTEPH credible set is eCAVIAR, so the CLPP rule decides.'
+      reviewed); the coloc authors called PP4 > 0.75 strong support. Open Targets computes both for each pair of
+      credible sets (in this release, method COLOC_PIP_ECAVIAR); nearly every pair kept passes both cut-offs.'
     refs: [tsepilov, coloc]
     used_in: sheets 4, 5, A3
   - key: overlap

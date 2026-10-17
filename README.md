@@ -152,8 +152,8 @@ Every extracted gene, variant, number and quote was checked against its source t
 |---|---:|
 | Clinical evidence: a sentence of a guideline or study, quoted verbatim and checked against its PubMed abstract at every build (76 quotes from 54 publications) | 27 |
 | The disease ontology | 11 |
-| Colocalization with a CTEPH credible set | 67 |
-| Lead-variant overlap | 70 |
+| Colocalization with a CTEPH credible set, as computed by Open Targets and kept at CLPP ≥ 0.01 or H4 ≥ 0.8 | 67 |
+| Lead-variant overlap, checked by this pipeline where Open Targets has no CTEPH credible set (weaker) | 70 |
 
 | Category | Conditions | Examples |
 |---|---:|---|
@@ -179,15 +179,37 @@ Every extracted gene, variant, number and quote was checked against its source t
 
 ![Related conditions by the CTEPH GWAS regions they share](results/snapshots/2026-10-16/09.figures/shared_regions.png)
 
-*Conditions sharing two or more CTEPH regions, and clinically related conditions sharing one. Filled dot: colocalization with the CTEPH credible set (CLPP ≥ 0.01 or H4 ≥ 0.8). Open dot: lead-variant overlap, a weaker kind of evidence. Workbook sheet 5; knowledge base section 5.*
+*Conditions sharing two or more CTEPH regions, and clinically related conditions sharing one. Filled dot: colocalization with the CTEPH credible set, computed by Open Targets and kept here at CLPP ≥ 0.01 or H4 ≥ 0.8. Open dot: lead-variant overlap, checked by this pipeline; a weaker kind of evidence. Dot size: the number of GWAS signals, defined below. Workbook sheet 5; knowledge base section 5.*
 
 - **How a region can be shared.**
-  - Colocalization is possible only at the three regions with a CTEPH credible set (*ABO*, *FGG*, *F11*).
-  - Lead-variant overlap (lead-variant PIP ≥ 0.01) is used at four more regions (*MYH7B*, *F2*, *TSPAN15*, *SLC44A2*).
+  - **Colocalization is taken from Open Targets.** This pipeline runs no colocalization itself.
+    - Open Targets fine-maps the CTEPH GWAS (PICS) only at the three regions with a credible set (*ABO*, *FGG*, *F11*).
+    - For each pair of credible sets, it reports the coloc posterior H4 and the eCAVIAR CLPP.
+    - The pipeline downloads these results and keeps a condition whose credible set reaches CLPP ≥ 0.01 or H4 ≥ 0.8 with a CTEPH credible set. The thresholds and their basis are in `config/choices.yaml`.
+  - **Lead-variant overlap is this pipeline's own check,** used at four more regions (*MYH7B*, *F2*, *TSPAN15*, *SLC44A2*). Open Targets holds their lead variants but no CTEPH credible set, so the pipeline asks whether a credible set of the condition contains the CTEPH lead variant with PIP ≥ 0.01.
   - *HLA-DRA* and *F5*/*NME7* cannot be assessed, because their lead variants are not in Open Targets.
 - **Seven traits share six of the seven assessable regions** (all but *MYH7B*): venous thromboembolism, deep vein thrombosis, pulmonary embolism, VWF level, thromboembolism, thrombophlebitis and phlebitis.
 - **Factor VIII level** shares five regions, and **factor XI level** shares four.
 - **Thirty conditions share two or more regions.** Seventy-seven traits share only one region, 32 of them only *ABO*. A region shared with a single trait can reflect pleiotropy and is weak evidence of a relation.
+
+**What a GWAS signal count counts.** A GWAS signal is one credible set from one GWAS study of a related condition, at a CTEPH region. Either it colocalizes with the CTEPH credible set (filled dot), or it contains the CTEPH lead variant (open dot). A study has one such credible set per region (one exception, at *SLC44A2*, has two), and every count below is a number of distinct GWAS studies. In all, 256 studies contribute: 221 from the GWAS Catalog and 35 FinnGen R12 endpoints.
+
+The count is reported at three levels:
+- **One condition at one region** is the dot size in the figure and the hover text of workbook sheet 5.
+- **One condition** is the count in workbook sheet 4 and knowledge base section 4. It covers the condition's studies at any region, each counted once. For example, deep vein thrombosis has 12 studies with colocalizing credible sets at *ABO*, *F11* or *FGG*, 24 credible sets in all.
+- **One region** is the table below and knowledge base section 5. It adds up the counts of the conditions sharing the region. Open Targets can map one study to several conditions, and such a study counts once for each, so the sum exceeds the number of distinct studies.
+
+| Region | Shared by | Conditions | GWAS signals (sum over conditions) | Distinct GWAS studies |
+|---|---|---:|---:|---:|
+| *ABO* | colocalization | 44 | 58 | 51 |
+| *FGG* | colocalization | 30 | 133 | 102 |
+| *F11* | colocalization | 31 | 117 | 86 |
+| *MYH7B* | lead-variant overlap | 8 | 11 | 11 |
+| *F2* | lead-variant overlap | 34 | 86 | 71 |
+| *TSPAN15* | lead-variant overlap | 29 | 63 | 46 |
+| *SLC44A2* | lead-variant overlap | 37 | 105 | 89 |
+
+Several studies of one trait each count: different consortia, biobanks or data releases, which can share participants. A count therefore shows how consistently a region is shared across studies, not a number of independent replications.
 
 ### 7. Genes shared by CTEPH and related conditions
 
