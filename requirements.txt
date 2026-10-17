@@ -1,0 +1,8 @@
+# Python packages of the pipeline (params.python). Tested versions; newer ones are expected to work.
+# scripts/kg.py, the query tool, needs only the standard library.
+pandas>=2.2        # tested 2.2.2
+numpy>=1.26        # tested 1.26.4
+matplotlib>=3.8    # tested 3.8.4
+PyYAML>=6.0        # tested 6.0.1
+XlsxWriter>=3.2    # tested 3.2.9
+openpyxl>=3.1      # tested 3.1.5

@@ -1,0 +1,86 @@
+# Gene themes (functions) of the CTEPH genes: the second axis of the evidence ladder.
+#
+# Each theme groups genes by the function a named source assigns them; `basis` says how, `refs` names entries
+# of the `references` block of config/choices.yaml (verified 2026-10-17). Shown in the workbook (sheet "1 CTEPH
+# genes"), the knowledge base and the evidence figure.
+#
+# Rules (ot_common.assign_themes):
+#   - a gene belongs to the first theme that lists it;
+#   - a finding without a gene symbol joins the first theme whose genes or `words` occur in its gene text;
+#   - other genes are listed as "Other genes" (logged by the build, so that a new snapshot's genes can be placed
+#     here) and findings without any gene as "No gene named".
+themes:
+- key: fibrinogen
+  name: Fibrinogen
+  short: Fibrinogen
+  description: The three fibrinogen chains, among them the FGA Thr312Ala variant and the FGG region of the GWAS.
+  basis: FGA, FGB and FGG encode the alpha, beta and gamma chains of fibrinogen (UniProt); miR-759 regulates FGA.
+  refs: [uniprot]
+  genes: [FGA, FGB, FGG, MIR759]
+
+- key: vwf_fviii_fxi
+  name: ABO, von Willebrand factor, factor VIII and factor XI
+  short: ABO, VWF, FVIII, FXI
+  description: Genes that set plasma von Willebrand factor, factor VIII and factor XI levels.
+  basis: ABO, STAB2 and VWF are replicated loci for plasma VWF and FVIII levels (Sabater-Lleal 2019); F8 and F11
+    encode factors VIII and XI, and ADAMTS13 cleaves VWF (UniProt).
+  refs: [sabater, uniprot]
+  genes: [ABO, VWF, F8, ADAMTS13, STAB2, F11]
+
+- key: coagulation
+  name: Inherited thrombophilia and other hemostasis genes
+  short: Thrombophilia, hemostasis
+  description: Classic inherited thrombophilia, the venous-thrombosis loci TSPAN15 and SLC44A2, fibrinolysis and
+    other hemostasis genes.
+  basis: Factor V Leiden, prothrombin G20210A and deficiencies of antithrombin, protein C and protein S are the
+    common inherited thrombophilias (ASH 2023); TSPAN15 and SLC44A2 are venous-thromboembolism loci (Germain
+    2015); the other genes encode hemostasis or fibrinolysis proteins (UniProt).
+  refs: [ash2023, germain, uniprot]
+  genes: [F5, F2, PROC, PROS1, SERPINC1, THBD, F12, F13A1, F13B, KNG1, SERPIND1, SERPINE1, PLAT, PLG, CPB2, MTHFR,
+          TSPAN15, SLC44A2]
+
+- key: hla_immunity
+  name: HLA and immunity
+  short: HLA, immunity
+  description: HLA alleles, among them the Japanese HLA-B*52:01 / DPB1*02:02 associations, and immune genes.
+  basis: Genes of the major histocompatibility complex (HLA) and genes whose products act in immune cells
+    (UniProt).
+  refs: [uniprot]
+  genes: [HLA-A, HLA-B, HLA-C, HLA-DPB1, HLA-DQB1, HLA-DRA, HLA-DRB1, NFKBIL1, CLEC7A, TNFSF13B, CTSS, FGR, ETS1]
+
+- key: clonal
+  name: Clonal hematopoiesis, myeloproliferative and platelet-production genes
+  short: Clonal, MPN, platelets
+  description: Acquired variants (JAK2 V617F, clonal hematopoiesis) and germline genes of platelet production.
+  basis: DNMT3A, TET2, ASXL1, TP53, JAK2, SF3B1 and PPM1D are the most frequently mutated genes of clonal
+    hematopoiesis (Jaiswal 2014; Genovese 2014); MPL, THPO, NFE2, ETV6 and CALR act in megakaryopoiesis and
+    myeloproliferation (UniProt).
+  refs: [jaiswal, genovese, uniprot]
+  words: [clonal, CH-associated, CHIP]
+  genes: [JAK2, CALR, MPL, THPO, NFE2, ETV6, TET2, DNMT3A, ASXL1, RUNX1, TP53, PPM1D, SF3B1, SRSF2, U2AF1]
+
+- key: pah
+  name: Pulmonary arterial hypertension genes
+  short: PAH genes
+  description: Genes of heritable pulmonary arterial hypertension, tested in CTEPH.
+  basis: The genes ClinGen classified as having definitive (12) or moderate evidence for PAH (Welch 2023); TET2,
+    also moderate, is listed under clonal hematopoiesis, its role in the CTEPH studies.
+  refs: [welch]
+  genes: [BMPR2, ACVRL1, ATP13A3, CAV1, EIF2AK4, ENG, GDF2, KCNK3, KDR, SMAD9, SOX17, TBX4, ABCC8, GGCX]
+
+- key: vascular
+  name: Endothelium, platelets and vascular tone
+  short: Endothelium, vascular tone
+  description: Endothelial, platelet-receptor and vasoactive genes, among them genes associated with outcome rather
+    than risk (ACE, GNB3).
+  basis: Genes whose products act in the endothelium, on platelets or in vasomotor tone (UniProt).
+  refs: [uniprot]
+  genes: [GP6, ICAM1, NOS3, ACE, GNB3, SLC6A4, HTR2A, PTGIS, ANO1, STIM1, RNF213, RASA1]
+
+- key: pharmacogenetics
+  name: Anticoagulant pharmacogenetics
+  short: Pharmacogenetics
+  description: Genes of warfarin dosing.
+  basis: CYP2C9, VKORC1 and CYP4F2 are the genes of the CPIC warfarin dosing guideline (Johnson 2017).
+  refs: [cpic]
+  genes: [VKORC1, CYP2C9, CYP4F2]

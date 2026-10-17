@@ -1,0 +1,14 @@
+# Nextflow run state: regenerable, and specific to the machine that ran it
+work/
+.nextflow/
+.nextflow.log*
+run_*.log
+
+# Python and editor leftovers
+__pycache__/
+*.pyc
+.DS_Store
+.vscode/
+
+# Scratch runs (smoke runs write to --results_root <scratch>)
+results/_*/

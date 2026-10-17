@@ -1,0 +1,49 @@
+# The genome-wide significant regions of the CTEPH GWAS, as published.
+#
+# Liley et al. (2024), Am J Respir Crit Care Med 209(12):1477-1485, PMID 38470220, Table 1, copied from the
+# open-access full text (Europe PMC, PMC11208965) on 2026-10-17. Positions are GRCh37 as in the paper; MAF is
+# in controls; P is the CTEPH meta-analysis P value; P_PE the P value for pulmonary embolism from a separate GWAS;
+# V the CTEPH P value adjusted for the overall genetic similarity with PE (conditional false discovery rate).
+#
+# Why this table, not only Open Targets: Open Targets holds no summary statistics for this study and fine-maps
+# only the curated top hits it can (three regions: ABO, FGG, F11). The paper's own gene names are used for the
+# regions; the locus-to-gene genes of Open Targets are shown beside them where a credible set exists.
+#
+# `evidence` decides how a region's gene is marked in the gene x condition map:
+#   meta  : CTEPH meta-analysis P < 5e-8 (tiers 1-3 on the meta-analysis P)        -> G
+#   pe    : genome-wide significant only after leveraging PE, V < 5e-8 (tier 3)   -> G* (marked as such)
+source:
+  pmid: '38470220'
+  pmcid: PMC11208965
+  table: Table 1. Genome-Wide Significant Regions for Chronic Thromboembolic Pulmonary Hypertension
+  threshold: genome-wide significance, P < 5 x 10^-8
+  quotes:
+  - "we defined genetic associations at three tiers of significance, all of which generally correspond to a
+    genome-wide significance of overall P value <5 × 10−8 with varying levels of evidence in the discovery and
+    replication subcohorts."
+  - "Two regional associations (FGG and ABO) were found at tier 1 significance, and a further association (MYH7B)
+    was found at tier 2 significance."
+  - "Two further regions (F11 and HLA-DRA) reached tier 3 significance on the basis of meta-analysis P value."
+  - "The coanalyses with PE demonstrated four further associations at tier 3 genome-wide significance (F2, TSPAN15,
+    SLC44A2, and F5/NME7)."
+  - "V values can be thought of as P values for chronic thromboembolic pulmonary hypertension adjusted to account
+    for overall genetic similarity with PE."
+regions:
+- {gene: ABO, genes: [ABO], chrom: '9', pos_grch37: 136137106, rsid: rs687289, maf: 0.340, or: 1.80,
+   p: 6.8e-27, p_pe: 5.4e-35, v: 6.8e-27, tier: 1, evidence: meta}
+- {gene: FGG, genes: [FGG], chrom: '4', pos_grch37: 155520930, rsid: rs7659024, maf: 0.250, or: 1.60,
+   p: 9.0e-17, p_pe: 4.7e-14, v: 3.5e-23, tier: 1, evidence: meta}
+- {gene: F11, genes: [F11], chrom: '4', pos_grch37: 187207381, rsid: rs2289252, maf: 0.400, or: 1.30,
+   p: 7.7e-9, p_pe: 3.3e-16, v: 3.0e-15, tier: 3, evidence: meta}
+- {gene: MYH7B, genes: [MYH7B], chrom: '20', pos_grch37: 33572178, rsid: rs745849, maf: 0.430, or: 0.76,
+   p: 3.4e-8, p_pe: 7.5e-2, v: 9.7e-8, tier: 2, evidence: meta}
+- {gene: HLA-DRA, genes: [HLA-DRA], chrom: '6', pos_grch37: 32434481, rsid: rs17202899, maf: 0.100, or: 1.60,
+   p: 4.7e-8, p_pe: 5.5e-1, v: 9.2e-7, tier: 3, evidence: meta}
+- {gene: F2, genes: [F2], chrom: '11', pos_grch37: 46349696, rsid: rs149903077, maf: 0.013, or: 3.30,
+   p: 7.9e-8, p_pe: 1.6e-12, v: 3.0e-14, tier: 3, evidence: pe}
+- {gene: TSPAN15, genes: [TSPAN15], chrom: '10', pos_grch37: 71196698, rsid: rs78677622, maf: 0.130, or: 0.70,
+   p: 1.5e-6, p_pe: 8.2e-12, v: 6.0e-13, tier: 3, evidence: pe}
+- {gene: SLC44A2, genes: [SLC44A2], chrom: '19', pos_grch37: 10742170, rsid: rs2288904, maf: 0.210, or: 0.76,
+   p: 8.3e-6, p_pe: 2.2e-7, v: 9.3e-11, tier: 3, evidence: pe}
+- {gene: F5/NME7, genes: [F5, NME7], chrom: '1', pos_grch37: 169272453, rsid: rs796548658, maf: 0.039, or: 1.60,
+   p: 1.5e-4, p_pe: 3.9e-18, v: 7.2e-10, tier: 3, evidence: pe}

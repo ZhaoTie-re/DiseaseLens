@@ -1,0 +1,519 @@
+# Every choice that decides what enters the CTEPH knowledge graph: the value used and its basis.
+#
+# Read by the workbook (sheet "10 Choices and basis", and the footnotes that name a threshold), the knowledge
+# base (section "Choices and their basis") and the slides. When `param` is given, the value shown is the one
+# the run used (from its parameters), never a copy typed here.
+#
+# basis_type:
+#   source      a publication or the documentation of a data source; `refs` names entries of `references`
+#               below (APA, formatted from PubMed efetch, or a documentation URL with its access date)
+#   data check  a check on this snapshot's data that the choice passed; the check is computed and shown
+#   design      a decision of this project, with its reason
+#   user        decided with the user, on the date given
+# Every statement attributed to a source was checked against its full text or documentation (2026-10-17).
+# verify.sh checks that every result-shaping parameter of the pipeline has an entry, that every entry has a
+# basis, and that every reference resolves.
+groups:
+
+- name: Scope and sources
+  items:
+  - key: fetch_date
+    item: Snapshot date
+    param: FetchDate
+    basis_type: design
+    basis: Each run is one dated snapshot; PubMed is searched up to this date and Open Targets is read in its
+      release of the day, so that a later snapshot can be compared with this one.
+    used_in: every step
+  - key: disease
+    item: CTEPH identifier
+    param: DiseaseCore
+    basis_type: source
+    basis: The Experimental Factor Ontology term for chronic thromboembolic pulmonary hypertension, under which
+      Open Targets holds CTEPH.
+    refs: [ot]
+    used_in: every step
+  - key: sources
+    item: Data sources
+    value: Open Targets Platform; PubMed; Europe PMC
+    basis_type: source
+    basis: Open Targets integrates GWAS credible sets, locus-to-gene genes, colocalization, curated gene evidence
+      and text mining for target–disease pairs; PubMed holds the primary studies; Europe PMC serves the
+      open-access full texts.
+    refs: [ot, epmc]
+    used_in: every step
+  - key: external_only
+    item: External knowledge only
+    value: none of the project's own results
+    basis_type: user
+    basis: Decided with the user (2026-10-16), so that the graph can be used to interpret the project's signals
+      without circularity.
+    used_in: every step
+  - key: excluded
+    item: Not included
+    value: drugs, animal models
+    basis_type: user
+    basis: Decided with the user (2026-10-16); they do not bear on the interpretation of genetic signals.
+    used_in: scope
+
+- name: CTEPH genetics
+  items:
+  - key: published_regions
+    item: GWAS regions of CTEPH
+    value: the 9 genome-wide significant regions of the CTEPH GWAS, as published
+    basis_type: source
+    basis: The only GWAS of CTEPH reports 9 regions at genome-wide significance (Table 1). Open Targets holds no
+      summary statistics for this study and fine-mapped only some of them, so the regions are taken from the
+      publication and their status in Open Targets is shown beside them.
+    refs: [liley]
+    check: published_regions
+    used_in: sheets 1, 2, 5; evidence grid, regions figure
+  - key: region_names
+    item: Name of a GWAS region
+    value: the gene the publication reports; the locus-to-gene genes shown beside it
+    basis_type: source
+    basis: The locus-to-gene score is a prediction; at the FGG region its top gene (FGA, 0.44) is below the
+      score this project accepts, while the publication names FGG.
+    refs: [liley, mountjoy]
+    used_in: every sheet that names a CTEPH region
+  - key: g_codes
+    item: G and G* (CTEPH GWAS genes)
+    value: G, CTEPH meta-analysis P < 5 × 10⁻⁸; G*, significant only after leveraging PE (V < 5 × 10⁻⁸)
+    basis_type: source
+    basis: The publication's thresholds. Its three tiers all correspond to genome-wide significance of the overall
+      P value; four further regions (F2, TSPAN15, SLC44A2, F5/NME7) reach it only through the co-analysis with
+      PE, whose V values are P values adjusted for the genetic similarity of CTEPH and PE. They are marked apart.
+    refs: [liley]
+    used_in: sheets 1, 2, 6; evidence grid, gene map
+  - key: ladder
+    item: Evidence ladder of a CTEPH gene
+    value: 1 G; 2 G*; 3 associated in ≥ 2 studies; 4 associated in 1 study; 5 variant identified without a test;
+      6 tested, not associated; 7 other result only
+    basis_type: source
+    basis: A gene takes its strongest level. Genome-wide significance (levels 1–2) follows the GWAS; association
+      in two or more studies (level 3) ranks above a single study because replication is what makes an
+      association credible rather than a chance finding. Studies are counted, not independent samples. Levels 3–6
+      count only findings about CTEPH itself; a gene whose findings concern only an outcome within CTEPH (e.g.
+      GNB3) stays at level 7.
+    refs: [liley, kraft]
+    used_in: sheets 1, 2; evidence grid
+  - key: themes
+    item: Function of a gene (gene theme)
+    value: 8 themes, each with its basis
+    basis_type: source
+    basis: Genes are grouped by the function their sources assign them, and each theme names its source (the
+      fibrinogen chains; determinants of VWF and FVIII levels; inherited thrombophilia and VTE loci; HLA; clonal
+      hematopoiesis; PAH genes curated by ClinGen; warfarin pharmacogenetics). Genes no source groups are listed
+      as "Other genes".
+    refs: [sabater, ash2023, germain, jaiswal, genovese, welch, cpic, uniprot]
+    used_in: sheets 1, 2; evidence grid
+
+- name: Related conditions
+  items:
+  - key: categories
+    item: Categories of related conditions
+    value: precursor / spectrum; risk factor; comorbidity; intermediate trait; PH group
+    basis_type: source
+    basis: Chosen with the user (2026-10-16) and grounded in the guidelines. The 2022 ESC/ERS guidelines place
+      CTEPH in group 4 of pulmonary hypertension and list its risk factors (intravascular devices, inflammatory
+      bowel disease, essential thrombocythemia, polycythemia vera, splenectomy, antiphospholipid syndrome,
+      thyroid hormone replacement, malignancy); the ERS statement places CTEPH within chronic thromboembolic
+      pulmonary disease (CTEPD).
+    refs: [humbert, delcroix]
+    used_in: sheet 4; condition map
+  - key: clinical_rule
+    item: Clinical relation
+    value: a PubMed title or abstract states the relation; its sentence is quoted
+    basis_type: design
+    basis: Every clinical relation must be traceable to a sentence of a primary source. The quote is re-checked
+      against the abstract fetched at each build, and the build stops if it is not found.
+    used_in: sheet 4 (evidence rows)
+  - key: contrary
+    item: Contrary findings
+    value: kept, labeled by direction
+    basis_type: design
+    basis: Reporting only positive findings would overstate a relation; studies that found no association are
+      kept beside the positive ones.
+    used_in: sheet 4
+  - key: ontology
+    item: Ontology neighbors
+    value: parent of CTEPH; its siblings; children of PAH
+    basis_type: design
+    basis: The disease ontology places CTEPH under pulmonary hypertension, whose other forms are its neighbors.
+      They are kept as a separate, weaker evidence type, since the ontology states a classification, not a
+      clinical relation.
+    used_in: sheet 4
+  - key: clpp
+    item: Colocalization with a CTEPH credible set (eCAVIAR CLPP)
+    param: ClppMin
+    format: CLPP ≥ {v}
+    basis_type: source
+    basis: The cut-off the eCAVIAR authors used to conclude that a causal variant is shared, and the one the Open
+      Targets team uses together with H4 (preprint). Open Targets' documentation states no cut-off.
+    refs: [ecaviar, tsepilov]
+    used_in: sheets 4, 5, A3; regions figure
+  - key: h4
+    item: Colocalization with a CTEPH credible set (coloc H4)
+    param: H4Min
+    format: H4 ≥ {v}
+    basis_type: source
+    basis: '"COLOC PH4 ≥ 0.8 or eCAVIAR CLPP ≥ 0.01" is the rule of the Open Targets team (preprint, not peer
+      reviewed); the coloc authors called PP4 > 0.75 strong support. In this release every colocalization with a
+      CTEPH credible set is eCAVIAR, so the CLPP rule decides.'
+    refs: [tsepilov, coloc]
+    used_in: sheets 4, 5, A3
+  - key: overlap
+    item: Lead-variant overlap (regions without a CTEPH credible set)
+    param: ClppMin
+    format: lead-variant PIP ≥ {v}
+    basis_type: design
+    basis: Without a CTEPH credible set, colocalization cannot be computed. If the CTEPH lead variant were the
+      causal variant, the CLPP of the pair would equal that variant's posterior inclusion probability (PIP) in the
+      other credible set, so the colocalization cut-off is applied to that PIP. It is an upper bound, hence a
+      weaker kind of evidence, shown apart.
+    refs: [ecaviar]
+    used_in: sheets 4, 5, A3; regions figure
+  - key: loci_grading
+    item: Strength of a shared signal
+    value: two or more CTEPH regions (stronger); one region (weak)
+    basis_type: data check
+    basis: A region can act on another trait through a pathway unrelated to CTEPH (pleiotropy); the ABO region,
+      associated with many unrelated traits, is the most frequent single shared region. Two or more shared
+      regions point to a shared mechanism; one region alone is weak evidence.
+    check: single_locus_abo
+    used_in: sheets 4, 5; condition map
+
+- name: Genetics of the related conditions
+  items:
+  - key: genetics_mode
+    item: Depth of genetic retrieval
+    value: all GWAS and curated evidence; shared signals only; none
+    basis_type: design
+    basis: Procedures (splenectomy, devices) and CTEPD have no Open Targets record, and malignancy is too broad a
+      phenotype. Traits related only by a shared signal, and platelet count (125 GWAS of a general blood trait),
+      keep only their shared signals, so that they do not flood the gene map with unrelated genes.
+    used_in: sheets 4, 7
+  - key: l2g
+    item: GWAS gene of a condition (locus-to-gene score)
+    param: L2gMin
+    format: score ≥ {v}
+    basis_type: source
+    basis: The classification threshold of the locus-to-gene model (precision 0.73, recall 0.53 against curated
+      gold-standard genes); Open Targets displays scores from 0.05 upward.
+    refs: [mountjoy]
+    used_in: sheets 6, 7; gene map
+  - key: curated
+    item: Curated gene evidence (source score)
+    param: MendelianMin
+    format: Open Targets source score ≥ {v}
+    basis_type: source
+    basis: The score is Open Targets' harmonic sum of a source's evidence scores, scaled to 0–1. At 0.5 it keeps
+      genes with at least one strong record (ClinGen or Gene2Phenotype strong or definitive, PanelApp green,
+      Orphanet assessed, UniProt high, a ClinVar pathogenic record) or several weaker ones; one moderate, amber or
+      likely-pathogenic record alone does not reach it.
+    refs: [otdocs_evidence, otdocs_assoc]
+    used_in: sheets 6, 7, A4; gene map
+  - key: eas
+    item: East Asian GWAS study
+    param: EasMin
+    format: East Asian share ≥ {v}
+    basis_type: design
+    basis: A study is called East Asian when East Asians are at least half of its linkage-disequilibrium reference
+      sample, as Open Targets records it.
+    used_in: sheets 4, 7, 9, A1
+  - key: gene_link
+    item: Gene–condition link (G, C, L)
+    value: G GWAS; C curated evidence; L a genetic study of CTEPH
+    basis_type: design
+    basis: The kinds of genetic evidence are kept apart so that a reader can see which kind links a gene to a
+      condition. G follows the locus-to-gene threshold for the related conditions and the published regions for
+      CTEPH (G* when significant only after leveraging PE); C follows the curated threshold; L requires an
+      association, enrichment or variant reported by a genetic study of CTEPH.
+    used_in: sheet 6; gene map
+
+- name: Genetic studies of CTEPH in the literature
+  items:
+  - key: query
+    item: PubMed search
+    param: PubmedQuery
+    basis_type: data check
+    basis: CTEPH in title or abstract and a genetics term in title or abstract, up to the fetch date. Checked at
+      every snapshot against a benchmark chosen independently of the search, the original genetic studies cited
+      by the curated seed of related conditions.
+    benchmark: [15640334, 18057060, 18931448, 19165231, 19420351, 10706510, 20182352, 23894515, 32397294, 36338413,
+                38116660, 38470220, 39150410, 39604025, 40726512]
+    used_in: sheet A6
+  - key: prescreen_types
+    item: Pre-screen by record type
+    value: review, systematic review, guideline, editorial, comment, news, consensus statement excluded
+    basis_type: design
+    basis: These record types report no original genetic data.
+    used_in: sheet A6
+  - key: prescreen_terms
+    item: Pre-screen by genetic-study terms
+    param: Prescreen
+    basis_type: data check
+    basis: A record whose title and abstract name no genetic-study term (polymorphism, genotype, allele, mutation,
+      sequencing, exome, genome-wide, HLA, SNP, rsID, germline, somatic, clonal hematopoiesis, Mendelian
+      randomization, haplotype, linkage, ...) is excluded before any model reads it. Checked at every snapshot on
+      the same benchmark as the search.
+    benchmark: [15640334, 18057060, 18931448, 19165231, 19420351, 10706510, 20182352, 23894515, 32397294, 36338413,
+                38116660, 38470220, 39150410, 39604025, 40726512]
+    used_in: sheet A6
+  - key: inclusion
+    item: Inclusion of a study
+    value: an original study or case report with genetic data from CTEPH patients
+    basis_type: design
+    basis: The question is what genetic studies of CTEPH found; reviews, expression-only studies and animal-only
+      studies hold no such data.
+    used_in: sheets 2, 3, A5
+  - key: batch
+    item: Abstracts per screening call
+    param: LlmBatch
+    format: '{v} abstracts'
+    basis_type: design
+    basis: Fewer calls while each abstract stays short enough to be read in full; the value was not tuned.
+    used_in: screening
+  - key: model
+    item: Language model
+    param: LlmModel
+    basis_type: design
+    basis: The default model of the command-line tool, recorded in the run manifest. Answers are cached per model
+      and prompt, so a change of model re-reads every record.
+    used_in: screening, extraction, summaries
+  - key: methods_fields
+    item: Methods fields extracted
+    value: 15 fields (cohort, diagnosis, controls, DNA source, platform, sequencing, HLA typing, variant calling and
+      QC, imputation, statistical test, covariates, multiple testing, replication, power, software)
+    basis_type: source
+    basis: Twelve fields follow the STREGA reporting guideline for genetic association studies (items 3, 5–8, 12
+      and 16); power relates to its item 10 (study size); sequencing and HLA typing are added for the designs of
+      these studies.
+    refs: [strega]
+    used_in: sheet 3
+  - key: fallback
+    item: Source of the methods
+    value: open-access Methods section; else the abstract
+    basis_type: user
+    basis: Decided with the user (2026-10-16); methods from the abstract when no full text can be fetched, marked
+      as such.
+    used_in: sheet 3
+  - key: grounding
+    item: Grounding of extracted items
+    value: every gene, variant, number and quote must occur in the source text
+    basis_type: design
+    basis: A language model can produce text that is not in its input; an item that cannot be found in the source
+      is dropped and logged.
+    used_in: sheets 2, 3
+  - key: isolation
+    item: Isolation of the language model
+    value: no tools, no project memory, no saved session
+    basis_type: design
+    basis: The extraction must rest on the record alone; nothing of the project's own data or notes may reach it.
+      A probe call tests this before each run.
+    used_in: screening, extraction, summaries
+
+- name: Mechanisms and summaries
+  items:
+  - key: reactome
+    item: Mechanism themes
+    value: Reactome top-level pathways
+    basis_type: source
+    basis: Open Targets annotates each target with its Reactome pathways; the top-level pathway is the broadest
+      stable grouping.
+    refs: [reactome]
+    used_in: sheet 8
+  - key: theme_size
+    item: Input of a mechanism summary
+    param: ThemeTargets
+    format: '{v} best-scored targets'
+    basis_type: design
+    basis: Up to two sentences from the two best-scored publications of each of the best-scored targets of a
+      theme; the input stays small enough to be checked sentence by sentence.
+    used_in: sheet 8
+  - key: theme_min
+    item: Smallest theme summarized
+    param: MinThemeTargets
+    format: '{v} targets'
+    basis_type: design
+    basis: A summary resting on one or two targets would restate their sentences rather than synthesize a theme.
+    used_in: sheet 8
+  - key: sentences
+    item: Sentences kept per text-mined publication
+    param: SentencesPerPaper
+    format: '{v} sentences'
+    basis_type: design
+    basis: The sentences that name both the target and CTEPH, abstract first; enough to judge a link without
+      reproducing the paper.
+    used_in: sheet 8
+  - key: summary_checks
+    item: Checks of a generated summary
+    value: every cited PMID among the inputs; every gene named in the source text
+    basis_type: design
+    basis: A summary may only state what its source records contain; one that fails is withheld.
+    used_in: sheets 2, 3, 8
+  - key: smoke
+    item: Smoke-run limits
+    param: LlmLimit
+    format: 'off ({v})'
+    basis_type: design
+    basis: Limits for a quick test run (first N records, largest themes only); a full snapshot runs with both off,
+      and the run manifest records it.
+    used_in: test runs only
+
+- name: Curation of the literature
+  items:
+  - key: exclusion
+    item: Publications left out
+    value: retracted (publication type Retracted Publication or Retraction of Publication, or a RetractionIn link);
+      conference material (publication type Congress or Conference Proceedings, or a journal-supplement record
+      without an abstract)
+    basis_type: user
+    basis: Decided with the user (2026-10-17) that conference abstracts and retracted articles are not evidence.
+      PubMed marks both by publication type and links a retracted article to its notice; every publication the
+      graph uses is looked up, and a left-out publication leaves every table it was in.
+    refs: [nlm_pubtypes]
+    used_in: every sheet; sheet 10
+  - key: flags
+    item: Publications flagged and kept
+    value: preprint; published erratum; expression of concern
+    basis_type: design
+    basis: Not reasons to leave a publication out, but to read it with care (a preprint is not peer-reviewed); the
+      flag is shown with every link to it.
+    used_in: sheet 10, A5
+  - key: textmining_review
+    item: Text-mined links mapped to the wrong gene
+    value: each matched word read against its sentences
+    basis_type: design
+    basis: Europe PMC text mining maps words to genes by dictionary, so a word that names something else in the
+      CTEPH literature makes a false link (sGC, soluble guanylate cyclase, mapped to SGCB; PTPA and BPA, pulmonary
+      angioplasty; aPL, antiphospholipid antibodies; TF, tissue factor, mapped to transferrin). Each matched word
+      was read against its sentences (2026-10-17). A link whose every word is wrong is dropped, a wrong word is
+      removed from a link that keeps another, and a correction that matches no link stops the build.
+    refs: [epmc]
+    used_in: sheets 8, 10
+  - key: variants
+    item: Variant names
+    value: one name per variant, with its dbSNP rsID where established
+    basis_type: source
+    basis: The abstracts write one variant in several ways (factor V Leiden, FVL, 1691G>A; HLA-B*5201, B(*)5201);
+      a list of patterns per gene gives each one name and, for the classic variants, its dbSNP rsID. The name as
+      written is kept beside it.
+    refs: [dbsnp]
+    used_in: sheets 2, 10
+  - key: about
+    item: What a finding is about
+    value: CTEPH itself (default); a phenotype or outcome within CTEPH; another trait; a functional experiment; a
+      background statement
+    basis_type: design
+    basis: An association with survival, clinical worsening, exercise capacity, a biomarker or the clinical type
+      among patients modifies the course of CTEPH; it is not evidence that the gene raises the risk of CTEPH. Each
+      such finding was read against its source sentence (2026-10-17) and is kept, marked, without raising the
+      gene's evidence level; a later finding with words of this kind is logged for review.
+    used_in: sheets 1, 2, 10
+  - key: place
+    item: Place of a genetic study
+    value: the country of the first author's institution
+    basis_type: design
+    basis: The first author's affiliation in PubMed (in Europe PMC when PubMed has none) names the institution that
+      led the study, while many abstracts do not name the population. The place sets the Japanese and East Asian
+      flags, as does a Japanese or East Asian population the abstract states; a multinational study takes the
+      place of its lead institution.
+    used_in: sheets 2, 3, 9, A5
+  - key: design_class
+    item: Design class of a genetic study
+    value: case report; genome-wide (GWAS, genome sequencing, Mendelian randomization); clonal hematopoiesis;
+      exome or panel sequencing; HLA typing; candidate gene; other (the first that applies)
+    basis_type: design
+    basis: A study can report several designs; one class by this precedence counts and groups each study once.
+    used_in: sheet 3, A5; studies figure
+  - key: rebuild
+    item: Rebuild from the saved sources
+    param: Rebuild
+    basis_type: design
+    basis: A rebuild re-derives a snapshot from its saved fetch and extraction; no source is queried again except
+      PubMed for the record of each publication, which the curation needs and keeps with the snapshot.
+    used_in: every step
+  - key: offline
+    item: Language model in this build
+    param: LlmOffline
+    format: 'cache only: {v}'
+    basis_type: design
+    basis: A build that changes only the curation calls no model. A generated summary is reused when its inputs
+      are unchanged; otherwise it is reported as not generated.
+    used_in: sheets 2, 3, 8
+
+- name: East Asian annotation
+  items:
+  - key: eas_countries
+    item: East Asian literature study
+    value: done in Japan, China, Korea, Taiwan, Hong Kong or Mongolia, or stated as East Asian
+    basis_type: design
+    basis: The countries of East Asia. A study is placed by the country of its first author's institution; it
+      counts as Japanese when it was done in Japan or its abstract states a Japanese population.
+    used_in: sheets 2, 9
+
+references:
+  nlm_pubtypes: "National Library of Medicine. Publication Characteristics (Publication Types) with Scope Notes.
+    https://www.nlm.nih.gov/mesh/pubtypes.html (accessed 2026-10-17)"
+  dbsnp: "Sherry, S. T., Ward, M. H., Kholodov, M., Baker, J., Phan, L., Smigielski, E. M., & Sirotkin, K. (2001).
+    dbSNP: The NCBI database of genetic variation. Nucleic Acids Research, 29(1), 308–311. PMID 11125122"
+  ot: "Buniello, A., Suveges, D., Cruz-Castillo, C., Llinares, M. B., Cornu, H., Lopez, I., ... & Ochoa, D. (2025).
+    Open Targets Platform: Facilitating therapeutic hypotheses building in drug discovery. Nucleic Acids Research,
+    53(D1), D1467–D1475. PMID 39657122"
+  epmc: "Rosonovski, S., Levchenko, M., Bhatnagar, R., Chandrasekaran, U., Faulk, L., Hassan, I., ... & Harrison, M.
+    (2024). Europe PMC in 2023. Nucleic Acids Research, 52(D1), D1668–D1676. PMID 37994696"
+  reactome: "Milacic, M., Beavers, D., Conley, P., Gong, C., Gillespie, M., Griss, J., ... & D'Eustachio, P. (2024).
+    The Reactome Pathway Knowledgebase 2024. Nucleic Acids Research, 52(D1), D672–D678. PMID 37941124"
+  liley: "Liley, J., Newnham, M., Bleda, M., Bunclark, K., Auger, W., Barbera, J. A., ... & Toshner, M. (2024).
+    Shared and distinct genomics of chronic thromboembolic pulmonary hypertension and pulmonary embolism. American
+    Journal of Respiratory and Critical Care Medicine, 209(12), 1477–1485. PMID 38470220"
+  ecaviar: "Hormozdiari, F., van de Bunt, M., Segrè, A. V., Li, X., Joo, J. W. J., Bilow, M., ... & Eskin, E. (2016).
+    Colocalization of GWAS and eQTL signals detects target genes. The American Journal of Human Genetics, 99(6),
+    1245–1260. PMID 27866706"
+  coloc: "Giambartolomei, C., Vukcevic, D., Schadt, E. E., Franke, L., Hingorani, A. D., Wallace, C., & Plagnol, V.
+    (2014). Bayesian test for colocalisation between pairs of genetic association studies using summary
+    statistics. PLoS Genetics, 10(5), e1004383. PMID 24830394"
+  tsepilov: "Tsepilov, Y. A., Suveges, D., Considine, D., Szyszkowski, S., Ge, X. J., López Santiago, I., ... &
+    Ochoa, D. (2026). The human pleiotropic map of GWAS associations and therapeutic implications. bioRxiv
+    (preprint, not peer reviewed). https://doi.org/10.64898/2026.04.28.721048"
+  mountjoy: "Mountjoy, E., Schmidt, E. M., Carmona, M., Schwartzentruber, J., Peat, G., Miranda, A., ... &
+    Ghoussaini, M. (2021). An open approach to systematically prioritize causal variants and genes at all
+    published human GWAS trait-associated loci. Nature Genetics, 53(11), 1527–1533. PMID 34711957"
+  otdocs_evidence: "Open Targets Platform documentation. Evidence: data sources and their scoring.
+    https://platform-docs.opentargets.org/evidence (accessed 2026-10-17)"
+  otdocs_assoc: "Open Targets Platform documentation. Associations: data source scores (harmonic sum).
+    https://platform-docs.opentargets.org/associations (accessed 2026-10-17)"
+  strega: "Little, J., Higgins, J. P., Ioannidis, J. P., Moher, D., Gagnon, F., von Elm, E., ... & Birkett, N.
+    (2009). STrengthening the REporting of Genetic Association Studies (STREGA): An extension of the STROBE
+    statement. PLoS Medicine, 6(2), e1000022. PMID 19192942"
+  kraft: "Kraft, P., Zeggini, E., & Ioannidis, J. P. (2009). Replication in genome-wide association studies.
+    Statistical Science, 24(4), 561–573. PMID 20454541"
+  humbert: "Humbert, M., Kovacs, G., Hoeper, M. M., Badagliacca, R., Berger, R. M. F., Brida, M., ... & Rosenkranz,
+    S. (2022). 2022 ESC/ERS Guidelines for the diagnosis and treatment of pulmonary hypertension. European Heart
+    Journal, 43(38), 3618–3731. PMID 36017548"
+  delcroix: "Delcroix, M., Torbicki, A., Gopalan, D., Sitbon, O., Klok, F. A., Lang, I., ... & Simonneau, G. (2021).
+    ERS statement on chronic thromboembolic pulmonary hypertension. European Respiratory Journal, 57(6), 2002828.
+    PMID 33334946"
+  welch: "Welch, C. L., Aldred, M. A., Balachandar, S., Dooijes, D., Eichstaedt, C. A., Gräf, S., ... & Chung, W. K.
+    (2023). Defining the clinical validity of genes reported to cause pulmonary arterial hypertension. Genetics in
+    Medicine, 25(11), 100925. PMID 37422716"
+  jaiswal: "Jaiswal, S., Fontanillas, P., Flannick, J., Manning, A., Grauman, P. V., Mar, B. G., ... & Ebert, B. L.
+    (2014). Age-related clonal hematopoiesis associated with adverse outcomes. New England Journal of Medicine,
+    371(26), 2488–2498. PMID 25426837"
+  genovese: "Genovese, G., Kähler, A. K., Handsaker, R. E., Lindberg, J., Rose, S. A., Bakhoum, S. F., ... &
+    McCarroll, S. A. (2014). Clonal hematopoiesis and blood-cancer risk inferred from blood DNA sequence. New
+    England Journal of Medicine, 371(26), 2477–2487. PMID 25426838"
+  germain: "Germain, M., Chasman, D. I., de Haan, H., Tang, W., Lindström, S., Weng, L. C., ... & Morange, P. E.
+    (2015). Meta-analysis of 65,734 individuals identifies TSPAN15 and SLC44A2 as two susceptibility loci for
+    venous thromboembolism. The American Journal of Human Genetics, 96(4), 532–542. PMID 25772935"
+  sabater: "Sabater-Lleal, M., Huffman, J. E., de Vries, P. S., Marten, J., Mastrangelo, M. A., Song, C., ... &
+    Smith, N. L. (2019). Genome-wide association transethnic meta-analyses identifies novel associations regulating
+    coagulation factor VIII and von Willebrand factor plasma levels. Circulation, 139(5), 620–635. PMID 30586737"
+  cpic: "Johnson, J. A., Caudle, K. E., Gong, L., Whirl-Carrillo, M., Stein, C. M., Scott, S. A., ... & Wadelius, M.
+    (2017). Clinical Pharmacogenetics Implementation Consortium (CPIC) guideline for pharmacogenetics-guided
+    warfarin dosing: 2017 update. Clinical Pharmacology & Therapeutics, 102(3), 397–404. PMID 28198005"
+  ash2023: "Middeldorp, S., Nieuwlaat, R., Baumann Kreuziger, L., Coppens, M., Houghton, D., James, A. H., ... &
+    Iorio, A. (2023). American Society of Hematology 2023 guidelines for management of venous thromboembolism:
+    Thrombophilia testing. Blood Advances, 7(22), 7101–7138. PMID 37195076"
+  uniprot: "UniProt Knowledgebase, protein function annotations of each gene. https://www.uniprot.org
+    (accessed 2026-10-17)"
