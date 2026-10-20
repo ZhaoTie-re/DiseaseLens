@@ -28,7 +28,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ot_common import a_, load_ladder, load_profile, load_themes, log, num, read_tsv, write_tsv  # noqa: E402
+from ot_common import a_, load_definitions, load_ladder, load_profile, load_themes, log, num, read_tsv, write_tsv  # noqa: E402
 
 
 def schema_of(P):
@@ -140,6 +140,7 @@ def main():
     rel = rel if 'agreement' in rel else rel.assign(agreement='')
     tidy = json.loads((T / 'tidy.json').read_text())
     LADDER, CODES, KIND = load_ladder(T)
+    DEF = load_definitions(T)
     themes = load_themes(T)
     CORE, short = P.id, P.short
     core_name = (tidy.get('core') or {}).get('name') or P.name
@@ -292,7 +293,8 @@ def main():
               'edges': {k: {'source': v[0], 'target': v[1], 'meaning': v[2],
                             'columns': ['source', 'target', 'type'] + v[3], 'count': counts['edges'][k]}
                         for k, v in EDGES.items()},
-              'ladder': {str(k): {'code': c, 'label': lab} for k, (c, lab) in LADDER.items()},
+              'ladder': {str(k): {'code': c, 'label': lab, 'definition': DEF.get(k, lab)}
+                         for k, (c, lab) in LADDER.items()},
               'codes': CODES, 'about': {'default': P.about, 'within': P.within},
               'region_labels': {'p': 'P', 'p_pe': 'P in the secondary analysis', 'v': 'V', 'or': 'OR', 'maf': 'MAF',
                                 'tier': 'tier', **((P.gwas or {}).get('columns') or {})}}
@@ -371,8 +373,9 @@ def readme(schema, meta, tables, P, example):
                   f'{v["count"]:,} | '
                   f'{", ".join(v["columns"][3:]) or "—"} |')
     md += ['', f'## Evidence ladder of a gene of {s} (`node_gene.disease_level`)', '',
-           '| Level | Code | Evidence |', '|---|---|---|']
-    md += [f'| {k} | {v["code"] or "—"} | {v["label"]} |' for k, v in schema['ladder'].items()]
+           '| Level | Code | Name | Definition |', '|---|---|---|---|']
+    md += [f'| {k} | {v["code"] or "—"} | {v["label"]} | {v.get("definition", "")} |'
+           for k, v in schema['ladder'].items()]
     md += ['', f'Levels 3–6 count only findings about {s} itself (`edge_reports.about` = "{P.about}"); an association '
            f'with a phenotype or outcome within {s} is kept on its edge but does not raise the level.', '',
            '## Example queries (SQLite)', '', '```sql',

@@ -8,11 +8,6 @@ overview_lead: >-
   CTEPH and how strong that evidence is, the genetic studies it comes from, the conditions related to CTEPH and the
   genetics they share with it. Every statement links to its source.
 
-# Overview page, the note under the evidence ladder (G* = significant only in the co-analysis with pulmonary embolism)
-ladder_note: >-
-  Levels 1–2: the CTEPH GWAS (G; G* only after leveraging pulmonary embolism). Levels 3–7: the genetic studies of
-  CTEPH; levels 3–6 count only findings about CTEPH itself.
-
 # GWAS regions page: the published regions (gwas_regions.yaml: Liley et al. 2024, PMID 38470220, Table 1)
 regions_lead: >-
   The {n} genome-wide significant regions of the CTEPH GWAS (Liley 2024, Table 1), named by the gene the

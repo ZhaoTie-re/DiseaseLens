@@ -216,6 +216,15 @@ The first snapshot of that build was deleted on 2026-10-16 at the user's request
       named "No Reactome pathway". Level 7, "Other result only", is now "No result about <disease> itself", with the
       reason for each gene: an outcome within the disease (GNB3 in CTEPH), or a gene named without a genetic result
       (an expression or proteomic result, a clonality marker, a gene listed in the methods).
+    - **One ladder for every disease** (user, 2026-10-20: "make the evidence ladder compatible, intuitive and
+      professional"; some diseases had no level 2). The seven levels now have the same names, codes and definitions
+      for every disease, each product shows all seven, and an empty level says why (level 2 is empty for every
+      disease but CTEPH, which alone has a published secondary analysis). Level 1 is always "G / C".
+    - The user asked how level 7 differs from the genes without a level: level 7 is a gene that a genetic study of
+      the disease names without a result about the disease (its meaning is now printed in its row); a gene without a
+      level is in no genetic study of the disease (a text-mined target, or a gene of a related condition), and is
+      labeled "No level" with its reason. Not included, at the user's choice (2026-10-20): published GWAS that Open
+      Targets does not hold (e.g. a PAH GWAS for IPAH); a disease without a curated table keeps its Open Targets GWAS.
     - Not changed: the genetics prompt (its byte identity keeps the cached answers of every disease); a profile's
       `scope` states which patients count for a subtype. A rebuild does not re-read the relations (METHODS §11).
   - **The repository holds the pipeline only** (user, 2026-10-19). Snapshots, the model cache and the slides stay on the

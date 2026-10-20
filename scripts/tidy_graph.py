@@ -62,7 +62,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ot_common import (EAS_COUNTRIES, NOT_REGION_COLS, SHARED_SIGNAL, SHARED_SIGNAL_OLD, auto_themes, check_themes,  # noqa: E402
                        curated_links, disease_regions, gene_ladder, ladder_spec, mining_links, p_unicode, relates,
-                       themes_with_fallback,
+                       level_status, themes_with_fallback,
                        legacy_path, load_json, load_profile, log, num, read_tsv, shared_relations, us_english,
                        write_json, write_tsv)
 
@@ -454,6 +454,7 @@ def main():
         write_tsv(df, out / f'{name}.tsv')
     for f in ('studies', 'findings', 'methods', 'screening'):
         shutil.copy(Q / f'{f}.tsv', out / f'disease_{f}.tsv')
+    spec['status'] = {str(k): dict(zip(('brief', 'full'), level_status(k, P, ladder))) for k in range(1, 8)}
     write_json(spec, out / 'ladder.json')
     write_json({'source': 'curated, and Reactome for the genes they do not list' if P.themes else 'Reactome (automatic)',
                 'themes': themes}, out / 'themes.json')

@@ -50,8 +50,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ot_common import (EAS_COUNTRIES, OTHER_GENES, SHARED_SIGNAL, load_choices,  # noqa: E402
-                       load_profile, log, not_regions_of, not_regions_sentence, read_tsv)
+from ot_common import (EAS_COUNTRIES, NO_LEVEL, OTHER_GENES, SHARED_SIGNAL, load_choices,  # noqa: E402
+                       load_glosses, load_profile, load_status, log, not_regions_of, not_regions_sentence, read_tsv)
 
 WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve']
 
@@ -75,15 +75,10 @@ def texts(P, regions, ladder, rp, not_regions):
     overview = (f'The knowledge graph of {name}: the genes with genetic evidence for {s} and how strong that evidence '
                 f'is, the genetic studies it comes from, the conditions related to {s} and the genetics they share '
                 'with it. Every statement links to its source.')
-    # the note under the ladder: the coded levels (GWAS, curated evidence), then the literature levels
-    coded = [(k, c, lab) for k, (c, lab) in ladder.items() if c]
-    lit = [k for k, (c, _lab) in ladder.items() if not c]
-    parts = [f'level {k} ({c}): {lab[:1].lower()}{lab[1:]}' for k, c, lab in coded]
-    note = '; '.join(parts)
-    note = (note[:1].upper() + note[1:] + '. ') if note else ''
-    if len(lit) >= 2:
-        note += (f'Levels {lit[0]}–{lit[-1]}: the genetic studies of {s}; levels {lit[0]}–{lit[-2]} count only '
-                 f'findings about {s} itself.')
+    # the note under the ladder: the same seven levels for every disease, each defined in the table above it
+    note = (f'Every disease shows the same seven levels; an empty level says why. Levels 1–2 come from GWAS and '
+            f'curated gene–disease evidence, levels 3–7 from the genetic studies of {s}; levels 3–6 count only '
+            f'findings about {s} itself.')
     # the regions: the published ones (the profile's table), then those from Open Targets
     src = (P.gwas or {}).get('source') or {}
     cite = ', '.join(x for x in (f'PMID {src["pmid"]}' if src.get('pmid') else '',
@@ -185,10 +180,10 @@ def main():
                     at['sentence'] = first[(pm, r['target'])]
             edges.append([r['source'], r['target'], k, at])
     ladder = {str(k): [v['code'], v['label']] for k, v in sorted(schema['ladder'].items(), key=lambda x: int(x[0]))}
-    # the level of a secondary analysis of a published GWAS (G*) only for a disease that has one
-    rg_codes = set(read_tsv(G / 'nodes_region.tsv', ['code']).code)
-    if 'G*' not in rg_codes and not any(n[1] == 'gene' and str(n[4].get('disease_level')) == '2' for n in nodes):
-        ladder = {k: v for k, v in ladder.items() if v[0] != 'G*'}
+    ladder_def = {str(k): v.get('definition') or v['label'] for k, v in schema['ladder'].items()}
+    # every level of the ladder, for every disease; what an empty or partly empty level holds, said in its row
+    level_status = {str(k): v for k, v in load_status(T).items() if v.get('brief')}
+    ladder_gloss = {str(k): v for k, v in load_glosses(T).items()}
     regions = read_tsv(G / 'nodes_region.tsv', ['id', 'source'])
     not_regions = not_regions_of(T)
     core = schema['graph']['core']
@@ -211,7 +206,8 @@ def main():
         'about': schema.get('about') or {'default': P.about, 'within': P.within},
         'schema': {'nodes': {k: v['meaning'] for k, v in schema['nodes'].items()},
                    'edges': {k: v['meaning'] for k, v in schema['edges'].items()}},
-        'ladder': ladder, 'categories': cats, 'shared_signal': SHARED_SIGNAL, 'other_genes': OTHER_GENES,
+        'ladder': ladder, 'ladder_def': ladder_def, 'ladder_gloss': ladder_gloss, 'level_status': level_status,
+        'no_level': P.fill(NO_LEVEL), 'categories': cats, 'shared_signal': SHARED_SIGNAL, 'other_genes': OTHER_GENES,
         'eas': list(EAS_COUNTRIES),
         # the labels of the region statistics of a published table that only some diseases have
         'region_labels': {'p_pe': cols.get('p_pe') or 'P in the secondary analysis', 'v': cols.get('v') or 'V'},
@@ -256,15 +252,19 @@ TEMPLATE = r'''<!doctype html>
   --accent: #b0413e; --head: #1f3b5f; --chip: #eef2f7; --hi: #fff6d6;
   --t-condition: #b0413e; --t-gene: #3c6e9f; --t-region: #b08a3c; --t-publication: #6a4c93;
   --t-gwas_study: #8a9199; --t-theme: #3f8a6e; --t-pathway: #4f8fbf;
-  --l1: #c6dbef; --l2: #e3eef8; --l3: #fce4cc; --l4: #fdf2e6; --l5: #f2f2f2;
+  --l1: #c6dbef; --l2: #e3eef8; --l3: #fce4cc; --l4: #fdf2e6; --l5: #f2f2f2; --navh: 42px;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 -apple-system, "Segoe UI", Roboto,
        "Helvetica Neue", Arial, "Noto Sans", sans-serif; }
-header { background: var(--head); color: #fff; padding: 12px 20px; display: flex; flex-wrap: wrap; gap: 12px 24px;
+header { background: var(--head); color: #fff; padding: 12px 24px; display: flex; flex-wrap: wrap; gap: 10px 28px;
          align-items: center; }
-header h1 { font-size: 18px; margin: 0; font-weight: 600; letter-spacing: .2px; }
-header .meta { font-size: 12px; opacity: .85; }
+header .brand { flex: 1 1 520px; min-width: 0; }
+header h1 { font-size: 19px; margin: 0; font-weight: 650; letter-spacing: .2px; }
+header .meta { font-size: 12.5px; opacity: .9; margin-top: 2px; }
+header .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+header .chips span { font-size: 11.5px; background: rgba(255,255,255,.13); border: 1px solid rgba(255,255,255,.22);
+                     border-radius: 10px; padding: 1px 9px; white-space: nowrap; }
 #search-wrap { position: relative; margin-left: auto; min-width: 280px; flex: 0 1 380px; }
 #search { width: 100%; padding: 7px 10px; border-radius: 4px; border: 0; font-size: 14px; }
 #suggest { position: absolute; top: 36px; left: 0; right: 0; background: #fff; color: var(--ink); z-index: 10;
@@ -272,34 +272,60 @@ header .meta { font-size: 12px; opacity: .85; }
            overflow: auto; }
 #suggest div { padding: 6px 10px; cursor: pointer; display: flex; gap: 8px; align-items: center; }
 #suggest div.on, #suggest div:hover { background: var(--chip); }
-nav { display: flex; gap: 2px; padding: 0 20px; background: var(--panel); border-bottom: 1px solid var(--line);
-      overflow-x: auto; }
-nav a { padding: 10px 14px; color: var(--ink2); text-decoration: none; border-bottom: 3px solid transparent;
-        white-space: nowrap; }
+nav { display: flex; gap: 2px; padding: 0 24px; background: var(--panel); border-bottom: 1px solid var(--line);
+      overflow-x: auto; position: sticky; top: 0; z-index: 30; height: var(--navh); align-items: stretch; }
+nav a { padding: 0 14px; color: var(--ink2); text-decoration: none; border-bottom: 3px solid transparent;
+        white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+nav a:hover { color: var(--head); background: #eef1f5; text-decoration: none; }
 nav a.on { color: var(--head); border-bottom-color: var(--head); font-weight: 600; }
-main { padding: 18px 20px 60px; max-width: 1400px; margin: 0 auto; }
-h2 { font-size: 20px; margin: 4px 0 6px; } h3 { font-size: 15px; margin: 22px 0 8px; color: var(--head); }
+nav a .cnt { font-size: 11px; font-weight: 600; color: var(--ink2); background: #e4e8ee; border-radius: 9px;
+             padding: 0 7px; }
+nav a.on .cnt { background: var(--head); color: #fff; }
+main { padding: 20px 24px 40px; max-width: 1400px; margin: 0 auto; }
+footer { border-top: 1px solid var(--line); color: var(--ink2); font-size: 12px; padding: 12px 24px 20px;
+         max-width: 1400px; margin: 0 auto; }
+h2 { font-size: 20px; margin: 4px 0 6px; }
+table.ladder-def { border-collapse: collapse; margin: 6px 0; font-size: 13px; }
+table.ladder-def td { padding: 4px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.ladder-def td.lvk { white-space: nowrap; } table.ladder-def td.lvn { font-weight: 600; white-space: nowrap; } h3 { font-size: 15px; margin: 22px 0 8px; color: var(--head); }
 p.lead { color: var(--ink2); margin: 0 0 14px; max-width: 980px; }
-a { color: var(--link); } a.ext { white-space: nowrap; } a.ext::after { content: " \2197"; font-size: 11px; }
+a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+a.ext { white-space: nowrap; } a.ext::after { content: " \2197"; font-size: 11px; }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin: 10px 0 6px; }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px;
+        transition: border-color .15s, box-shadow .15s; }
+a.card:hover { border-color: var(--link); box-shadow: 0 2px 8px rgba(31,59,95,.12); text-decoration: none; }
 .card .n { font-size: 22px; font-weight: 650; color: var(--head); } .card .t { font-size: 12px; color: var(--ink2); }
 table { border-collapse: collapse; width: 100%; font-size: 13px; }
 th, td { border-bottom: 1px solid var(--line); padding: 5px 7px; text-align: left; vertical-align: top; }
-th { background: var(--panel); font-weight: 600; position: sticky; top: 0; cursor: pointer; white-space: nowrap; }
+th { background: var(--panel); font-weight: 600; position: sticky; top: var(--navh); cursor: pointer; white-space: nowrap;
+     z-index: 2; box-shadow: inset 0 -1px 0 var(--line); }
 th.nosort { cursor: default; }
-tr:hover td { background: #fafbfc; }
+tbody tr:nth-child(even) td { background: #fbfcfd; }
+tr:hover td { background: #f1f5fa; }
 td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .quote { color: var(--ink2); font-style: italic; }
 .badge { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 10px; color: #fff;
          white-space: nowrap; }
-.badge.adj { background: #8a6d3b; font-size: 10px; padding: 0 6px; }
+.badge.adj { background: #a8792e; font-size: 10px; padding: 0 6px; }
+.badge.both { background: #4f8a68; font-size: 10px; padding: 0 6px; }
+.badge.one { background: #8a9199; font-size: 10px; padding: 0 6px; }
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .gene { font-style: italic; }
 .chip { display: inline-block; background: #fff; border: 1px solid var(--line); border-radius: 3px; padding: 0 5px;
         margin: 2px 3px 2px 0; font-style: italic; text-decoration: none; color: var(--ink); }
 .chip:hover { border-color: var(--link); color: var(--link); }
 .grid td { min-width: 80px; } .grid th { cursor: default; }
+/* a table in a horizontally scrolled box keeps its header in place (a sticky header would sit below the navigation
+   inside the box); its first column stays visible while the box scrolls (top: auto, or its header cell would be
+   pushed under the first row); the function names wrap, so that more columns fit the window */
+.grid th, .matrix th { position: static; top: auto; box-shadow: none; }
+.grid td:first-child, .grid th:first-child { position: sticky; left: 0; z-index: 1; }
+.grid th:first-child { background: var(--panel); }
+.grid thead th { white-space: normal; vertical-align: bottom; }
+.hscroll-hint { margin: 0 0 4px; text-align: right; }
+.grid td:first-child { background: inherit; box-shadow: inset -1px 0 0 var(--line); }
+.grid tbody tr:nth-child(even) td { background: inherit; }
 .lv1 { background: var(--l1); } .lv2 { background: var(--l2); } .lv3 { background: var(--l3); }
 .lv4 { background: var(--l4); } .lv5, .lv6, .lv7 { background: var(--l5); }
 .matrix td.c { text-align: center; font-size: 15px; } .matrix th.rot { writing-mode: vertical-rl;
@@ -408,7 +434,8 @@ table.plain td { font-size: 13px; }
 @media print {
   @page { margin: 12mm; }
   body { font-size: 9.5pt; }
-  nav, #search-wrap, #suggest, .tools, .btn, .cmap-tip { display: none !important; }
+  nav, #search-wrap, #suggest, .tools, .btn, .cmap-tip, .hscroll-hint { display: none !important; }
+  th { top: 0; }
   header { background: none; color: var(--ink); padding: 0 0 4px; border-bottom: 2px solid var(--head); }
   header h1 { color: var(--head); }
   header .meta { opacity: 1; color: var(--ink2); }
@@ -444,13 +471,13 @@ table.plain td { font-size: 13px; }
 </head>
 <body>
 <header>
-  <h1>__TITLE__</h1>
-  <div class="meta" id="meta"></div>
+  <div class="brand"><h1>__TITLE__</h1><div class="meta" id="meta"></div><div class="chips" id="chips"></div></div>
   <div id="search-wrap"><input id="search" type="search" placeholder="Search a gene, condition, PMID, region…"
        autocomplete="off"><div id="suggest"></div></div>
 </header>
 <nav id="nav"></nav>
 <main id="main"></main>
+<footer id="foot"></footer>
 <script type="application/json" id="kg-data">__DATA__</script>
 <script>
 'use strict';
@@ -485,12 +512,23 @@ function h(tag, attrs, ...kids) {
   return el;
 }
 const href = id => '#/n/' + encodeURIComponent(id);
+// a table wider than the window scrolls sideways in its box; a hint above the box says so while it does
+const hscroll = (tbl, what) => [h('div', {class: 'note hscroll-hint', style: 'display:none'},
+  `Wider than the window: scroll sideways to see all ${what} →`), h('div', {class: 'hscroll', style: 'overflow-x:auto'}, tbl)];
+const fitHints = () => document.querySelectorAll('.hscroll').forEach(w => {
+  w.previousElementSibling.style.display = w.scrollWidth > w.clientWidth + 1 ? '' : 'none'; });
+// a link from a list (a table, the ladder, the map) opens the node in a new tab, so that the list, its filter and
+// its place are kept; a link on a node's own page follows the graph in the same tab (the browser's Back returns)
+let LIST_PAGE = true;
+const newTab = () => LIST_PAGE ? {target: '_blank', rel: 'noopener'} : {};
 const nodeLink = (id, text) => {
   const n = N.get(id);
   if (!n) return text || id;
-  return h('a', {href: href(id), class: n.type === 'gene' ? 'gene' : null, title: TYPE_NAME[n.type] + ': ' + n.id},
+  return h('a', {href: href(id), class: n.type === 'gene' ? 'gene' : null, ...newTab(),
+                 title: TYPE_NAME[n.type] + ': ' + n.id + (LIST_PAGE ? ' (opens in a new tab)' : '')},
            text || n.label);
 };
+const openNode = id => { if (LIST_PAGE) window.open(href(id), '_blank', 'noopener'); else location.hash = href(id); };
 const ext = (url, text) => url ? h('a', {href: url, target: '_blank', rel: 'noopener', class: 'ext'}, text) : text;
 const pmid = p => {
   if (!p) return '';
@@ -513,7 +551,8 @@ const num = v => v === undefined || v === '' ? -Infinity : Number(v);
 const lvl = n => n.a.disease_level !== undefined ? Number(n.a.disease_level) : null;
 // the agreement of the two model readers on a record: 'adjudicated' as a badge, the other values as text
 const agree = v => v === 'adjudicated' ? h('span', {class: 'badge adj', title: 'the readers disagreed; an ' +
-  'adjudicator decided'}, 'adjudicated') : (v || '');
+  'adjudicator decided'}, 'adjudicated') : v === 'both' ? h('span', {class: 'badge both', title: 'both readers gave ' +
+  'the same answer'}, 'both') : v === 'one reader' ? h('span', {class: 'badge one'}, 'one reader') : (v || '');
 
 // a sortable, filterable table: cols [{label, get(row) -> value for sort/filter, cell(row) -> node}]
 function table(cols, rows, opts = {}) {
@@ -689,16 +728,19 @@ function edgeSection(id, key, list) {
   const sample = N.get(otherOf(list[0]));
   const ocols = (OTHER_COLS[sample?.type] || []).filter(c => list.some(e => N.get(otherOf(e))?.a[c.key] !== undefined));
   const ecols = (EDGE_COLS[type] || []).filter(c => list.some(e => e.a[c.key] !== undefined));
-  const cols = [{label: sample ? TYPE_NAME[sample.type] : 'Node', get: e => N.get(otherOf(e))?.label,
+  const single = list.length > 1 && new Set(list.map(otherOf)).size === 1;
+  const cols = (single ? [] : [{label: sample ? TYPE_NAME[sample.type] : 'Node', get: e => N.get(otherOf(e))?.label,
                  cell: e => nodeLink(otherOf(e))}]
     .concat(ocols.map(c => ({label: c.label, num: c.kind === 'num', get: e => N.get(otherOf(e))?.a[c.key],
-                             cell: e => fmt(N.get(otherOf(e))?.a[c.key])})))
+                             cell: e => fmt(N.get(otherOf(e))?.a[c.key])}))))
     .concat(ecols.map(c => ({label: c.label, num: c.kind === 'num', get: e => e.a[c.key],
                              cell: e => cellOf(c.kind, e.a[c.key])})));
   // a short section is kept on one printed page (heading, note and rows together)
   return h('section', {class: list.length <= 10 ? 'short' : null},
            h('h3', {}, `${SECTION[key] || key} (${list.length})`),
-           h('div', {class: 'note'}, D.schema.edges[type] || ''), table(cols, list, {limit: 100}));
+           h('div', {class: 'note'}, D.schema.edges[type] || ''),
+           single ? h('div', {class: 'note'}, 'Every row: ', nodeLink(otherOf(list[0]))) : null,
+           table(cols, list, {limit: 100}));
 }
 
 // ── facts of a node ───────────────────────────────────────────────────────
@@ -782,16 +824,27 @@ function overview() {
   grid.append(h('thead', {}, h('tr', {}, h('th', {}, 'Level'), th.map(t => h('th', {title: t}, short(t))))));
   const tb = h('tbody');
   for (const [k, [code, label]] of Object.entries(D.ladder)) {
-    const row = h('tr', {class: 'lv' + k}, h('td', {}, h('b', {}, `${k} ${code}`), h('br'), label));
+    const row = h('tr', {class: 'lv' + k}, h('td', {title: D.ladder_def[k]}, h('b', {}, `${k} ${code}`), h('br'), label,
+      D.ladder_gloss[k] ? h('div', {class: 'note', style: 'margin:2px 0 0'}, D.ladder_gloss[k]) : null,
+      D.level_status[k] ? h('div', {class: 'note', style: 'margin:2px 0 0', title: D.level_status[k].full},
+        D.level_status[k].brief) : null));
     for (const t of th) {
       const gs = genes.filter(g => lvl(g) === Number(k) && (g.a.theme || D.other_genes) === t)
                       .sort((a, b) => a.label.localeCompare(b.label));
-      row.append(h('td', {}, gs.map(g => h('a', {class: 'chip', href: href(g.id)}, g.label))));
+      row.append(h('td', {}, gs.map(g => h('a', {class: 'chip', href: href(g.id), ...newTab(),
+        title: 'Gene ' + g.label + ' (opens in a new tab)'}, g.label))));
     }
     tb.append(row);
   }
   grid.append(tb);
-  out.push(h('div', {style: 'overflow-x:auto'}, grid), h('div', {class: 'note'}, D.text.ladder_note));
+  // what each level means: the same definitions for every disease
+  const defs = h('table', {class: 'ladder-def'}, h('tbody', {}, Object.entries(D.ladder).map(([k, [code, label]]) =>
+    h('tr', {class: 'lv' + k}, h('td', {class: 'lvk'}, h('b', {}, `${k}`), code ? ` ${code}` : ''),
+      h('td', {class: 'lvn'}, label), h('td', {}, D.ladder_def[k],
+        D.level_status[k] ? h('div', {class: 'note'}, `${S}: ${D.level_status[k].full}`) : null)))));
+  out.push(...hscroll(grid, `${th.length} function columns`),
+    h('details', {class: 'cmap-all'}, h('summary', {}, 'What each level means'), defs),
+    h('div', {class: 'note'}, D.text.ladder_note));
   out.push(h('h3', {}, `Which conditions share the ${S} GWAS regions?`), regionMatrix());
   return out;
 }
@@ -830,7 +883,7 @@ function regionMatrix() {
       return h('td', {class: 'c', title: e ? `${e.a.method}: ${e.a.n_signals} GWAS signals, best ${e.a.measure} ` +
         fmt(e.a.best) : ''}, e ? (e.a.method === 'colocalization' ? '●' : '○') : ''); }),
     h('td', {class: 'num'}, s.size)))));
-  return h('div', {}, h('div', {style: 'overflow-x:auto'}, tbl),
+  return h('div', {}, ...hscroll(tbl, `${regions.length} region columns`),
            h('div', {class: 'note'}, `● a GWAS signal of the condition colocalizes with the ${S} credible set; ○ a ` +
              `GWAS credible set of the condition contains the ${S} lead variant (regions without a ${S} credible ` +
              'set; weaker). Rows: conditions sharing two or more regions, and clinically related conditions sharing ' +
@@ -847,7 +900,9 @@ function genesPage() {
       {label: `${S} level`, num: true, get: g => g.a.disease_level, cell: g => g.a.disease_level === undefined ? '' :
         h('span', {class: 'lv' + g.a.disease_level, style: 'padding:0 6px'},
           `${g.a.disease_level} ${g.a.disease_code || ''}`)},
-      {label: 'Evidence', get: g => g.a.disease_level_label + (g.a.disease_level_note ? ` (${g.a.disease_level_note})` : '')},
+      {label: 'Evidence', get: g => lvl(g) === null ? `No level: text-mined in ${g.a.n_text_mined_publications || 0} ` +
+        `${S} publications; genetic evidence in ${g.a.n_related_conditions || 0} related conditions` :
+        g.a.disease_level_label + (g.a.disease_level_note ? ` (${g.a.disease_level_note})` : '')},
       {label: 'Function', get: g => g.a.theme},
       {label: 'Related conditions', num: true, get: g => g.a.n_related_conditions},
       {label: 'Text-mined publications', num: true, get: g => g.a.n_text_mined_publications}],
@@ -856,8 +911,10 @@ function genesPage() {
         h('button', {class: 'btn' + (all ? ' on' : ''), onclick: () => { all = true; draw(); }}, 'Every gene'))}));
   };
   draw();
-  return [h('h2', {}, 'Genes'), h('p', {class: 'lead'}, `The genes studied genetically in ${S}, by evidence level; ` +
-    `“Every gene” adds the genes with genetic evidence in a related condition and the text-mined ${S} targets.`), box];
+  return [h('h2', {}, 'Genes'), h('p', {class: 'lead'}, `The genes studied genetically in ${S}, by evidence level ` +
+    `(levels 1–7). Level 7 holds the genes a genetic study of ${S} names without a result about ${S} itself. ` +
+    `“Every gene” adds the genes without a level, which appear in no genetic study of ${S}: the text-mined ${S} ` +
+    'targets (Europe PMC, as Open Targets gives them) and the genes with genetic evidence in a related condition.'), box];
 }
 
 // ── the condition map: the figure condition_map as drawn (09.figures/condition_map.json), interactive ──────
@@ -950,7 +1007,7 @@ function conditionMap(M, focus, pick) {
               h('div', {}, h('span', {class: 'k'}, 'Evidence: '), ev.join('; ')),
               it.east_asian.length ? h('div', {}, h('span', {class: 'k'}, 'East Asian: '),
                 it.east_asian.map(k => M.east_asian_kinds[k] || k).join('; ')) : null, hint()];
-    }, () => { location.hash = href(it.id); });
+    }, () => openNode(it.id));
     svg.append(g);
   }
   if (M.single) {                                            // the traits sharing a single region: one node
@@ -975,7 +1032,7 @@ function conditionMap(M, focus, pick) {
   const core = svgEl('g', {class: 'core'}, svgEl('circle', {r: 44, fill: M.colors.core}),
     svgEl('text', {'text-anchor': 'middle', 'dominant-baseline': 'central',
                    style: `fill:#fff;font-weight:700;font-size:${S.length <= 6 ? 22 : Math.max(11, 132 / S.length)}px`}, S));
-  hover(core, '__core', () => [h('b', {}, D.disease.Name), hint()], () => { location.hash = href(CORE); });
+  hover(core, '__core', () => [h('b', {}, D.disease.Name), hint()], () => openNode(CORE));
   svg.append(core);
   // the categories (a button selects one), and the key
   const cats = h('div', {class: 'cmap-cats'}, M.sectors.map(s => h('button', {class: 'btn' + (focus === s.category ?
@@ -1543,17 +1600,28 @@ function render() {
   const hash = decodeURIComponent(location.hash.slice(2) || 'overview');
   const main = document.getElementById('main');
   let tab = hash.split('/')[0];
-  if (hash.startsWith('n/')) { main.replaceChildren(nodePage(hash.slice(2))); tab = ''; }
+  LIST_PAGE = !hash.startsWith('n/');
+  if (!LIST_PAGE) { main.replaceChildren(nodePage(hash.slice(2))); tab = ''; }
   else main.replaceChildren(...[].concat((PAGES[tab] || overview)(hash.split('/').slice(1).join('/'))));
+  document.title = (LIST_PAGE ? (TABS.find(x => x[0] === (tab || 'overview')) || [0, 'Overview'])[1] :
+    (N.get(hash.slice(2)) || {label: 'Not found'}).label) + ' · ' + S + ' knowledge graph';
   document.querySelectorAll('nav a').forEach(a => a.classList.toggle('on', a.dataset.tab === tab));
   window.scrollTo(0, 0);
+  requestAnimationFrame(fitHints);
 }
-document.getElementById('nav').append(...TABS.map(([k, l]) => h('a', {href: '#/' + k, 'data-tab': k}, l)));
-// the full name and the ID beside the short name, which can name other things too
+const TAB_COUNT = {genes: byType('gene').filter(g => lvl(g) !== null).length, conditions: related().length,
+                   regions: byType('region').length, studies: byType('publication').filter(p => p.a.design_class).length};
+document.getElementById('nav').append(...TABS.map(([k, l]) => h('a', {href: '#/' + k, 'data-tab': k}, l,
+  TAB_COUNT[k] !== undefined ? h('span', {class: 'cnt'}, TAB_COUNT[k].toLocaleString()) : null)));
+// the full name and the ID beside the short name, which can name other things too; the snapshot as chips
 document.getElementById('meta').textContent = (D.disease.name.toLowerCase() === S.toLowerCase() ? '' :
-  `${D.disease.Name} · `) + `${D.disease.id} · Snapshot ${D.meta.snapshot} · Open Targets ${D.meta.release} · ` +
-  `PubMed checked ${D.meta.checked_at} · ${D.meta.n_nodes.toLocaleString()} nodes, ` +
-  `${D.meta.n_edges.toLocaleString()} edges`;
+  `${D.disease.Name} · `) + D.disease.id;
+document.getElementById('chips').append(...[`Snapshot ${D.meta.snapshot}`, `Open Targets ${D.meta.release}`,
+  `PubMed checked ${D.meta.checked_at}`, `${D.meta.n_nodes.toLocaleString()} nodes · ` +
+  `${D.meta.n_edges.toLocaleString()} edges`].map(x => h('span', {}, x)));
+document.getElementById('foot').append(`DiseaseLens · ${S} knowledge graph · snapshot ${D.meta.snapshot} · Open ` +
+  `Targets ${D.meta.release}. Links to sources (↗) and to a gene, condition or study from a list open in a new tab. `,
+  h('a', {href: '#/build'}, 'How it is built'), '.');
 const INDEX = [...N.values()].map(n => ({n, l: n.label.toLowerCase(), i: n.id.toLowerCase()}));
 const RANK = {gene: 0, condition: 1, region: 2, publication: 3, theme: 4, pathway: 5, gwas_study: 6};
 const search = document.getElementById('search'), sug = document.getElementById('suggest');
@@ -1581,6 +1649,7 @@ search.addEventListener('keydown', e => {
 });
 search.addEventListener('blur', () => setTimeout(() => { sug.style.display = 'none'; }, 150));
 window.addEventListener('hashchange', render);
+window.addEventListener('resize', fitHints);
 // printing shows every rule of the condition map
 window.addEventListener('beforeprint', () => document.querySelectorAll('details.cmap-all, details.bd')
   .forEach(d => { d.open = true; }));

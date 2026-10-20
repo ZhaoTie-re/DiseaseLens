@@ -10,13 +10,18 @@ graph as tables, JSON and SQLite. Several diseases can be built in one run.
 
 ## What the graph holds
 
-- **Genes of the disease**, each on an evidence ladder (strongest level wins):
+- **Genes of the disease**, each on an evidence ladder of seven levels, the same for every disease (strongest level
+  wins; an empty level says why):
 
-  | Level | Code | Rule |
-  |---|---|---|
-  | 1 | G / C | a gene of a genome-wide significant GWAS region of the disease (G), or curated gene–disease evidence for it (C) |
-  | 2 | G\* | a gene of a region significant only in a secondary analysis of a published GWAS |
-  | 3–7 | | from the genetic studies in PubMed: associated in two or more studies; in one; a variant identified without a test; tested, not associated; no result about the disease itself (the reason given for each gene) |
+  | Level | Code | Name | Definition |
+  |---|---|---|---|
+  | 1 | G / C | Genome-wide or curated evidence | a gene of a genome-wide significant GWAS region of the disease (G), or with curated gene–disease evidence for it (C) |
+  | 2 | G\* | Secondary GWAS analysis | a gene of a region significant only in a secondary analysis of a published GWAS |
+  | 3 | | Replicated association | associated in two or more genetic studies |
+  | 4 | | Single-study association | associated in one genetic study |
+  | 5 | | Variant reported, not tested | a variant reported in patients, without an association test |
+  | 6 | | Tested, not associated | tested and not associated in any study |
+  | 7 | | No result about the disease itself | named in a study without a result about the disease itself (the reason is given for each gene) |
 
   Levels 3–6 count only findings about the disease itself; a finding about an outcome among patients is kept and
   marked, and does not raise a level.

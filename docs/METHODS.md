@@ -163,18 +163,22 @@ ClinVar (eva), UniProt and gene burden.
 
 ### The evidence ladder (`ot_common.gene_ladder`)
 
-Every gene with genetic evidence for the disease takes its strongest level:
-1. **G**: a gene of a genome-wide significant GWAS region of the disease; or **C**: curated gene–disease evidence for
-   the disease (code C, when no G applies);
-2. **G\***: a gene of a region significant only in a secondary analysis of a published GWAS (CTEPH: after leveraging
-   pulmonary embolism);
-3. associated in two or more genetic studies of the disease;
-4. associated in one study;
-5. a variant identified, without an association test (case reports, sequencing series);
-6. tested, not associated;
-7. no result about the disease itself: a result about an outcome within it or about another trait, or the gene named
-   without an association, a variant or a negative test (an expression or proteomic result, a clonality marker, a
-   gene listed in the methods); the reason is given for each gene (`level_note`).
+Every gene with genetic evidence for the disease takes its strongest level. The seven levels, their names and their
+definitions are the same for every disease, so that the ladders of all diseases read alike. Each product says, in the
+row of a level, what an empty or partly empty level holds in the snapshot (`ot_common.level_status`, written to
+`ladder.json`), so that it is never read as missing data: level 1 with C only (no credible GWAS region) or G only (no
+curated evidence); level 2 empty because no published secondary analysis of the disease is known; any other level
+empty in this snapshot.
+
+| Level | Code | Name | Definition |
+|---|---|---|---|
+| 1 | G / C | Genome-wide or curated evidence | a gene of a genome-wide significant GWAS region of the disease (G: a region of a published GWAS, or a credible genome-wide significant signal of its GWAS in Open Targets), or with curated gene–disease evidence for it (C; code C when no G applies) |
+| 2 | G\* | Secondary GWAS analysis | a gene of a region genome-wide significant only in a secondary analysis of a published GWAS, such as one that leverages a correlated trait (CTEPH: after leveraging pulmonary embolism) |
+| 3 | | Replicated association | associated with the disease in two or more genetic studies |
+| 4 | | Single-study association | associated in one genetic study |
+| 5 | | Variant reported, not tested | a variant reported in people with the disease (case reports, sequencing series), without an association test |
+| 6 | | Tested, not associated | tested in genetic studies of the disease and not associated in any |
+| 7 | | No result about the disease itself | named in a genetic study without a result about the disease itself: a result about an outcome within it or another trait, or no association, variant or negative test (an expression or proteomic result, a clonality marker, a gene listed in the methods); the reason is given for each gene (`level_note`) |
 
 Level 3 ranks above level 4 because replication is what makes an association credible rather than a chance finding
 (Kraft 2009). Studies are counted, not independent samples: some share cases.
@@ -183,8 +187,15 @@ Levels 3–6 count only findings about the disease itself (section 7). An associ
 within the disease (survival, clinical worsening, exercise capacity) modifies the disease, but is not evidence that
 the gene raises its risk. Such findings are kept and shown; a gene with nothing else stays at level 7.
 
-The ladder a snapshot uses, with its labels, is written to `04.tables/ladder.json`. Level 1 names C only when a gene
-of the snapshot has curated evidence; CTEPH has none in Open Targets, so its level 1 is G only.
+**Level 7 and genes without a level.** Level 7 holds the genes that a genetic study of the disease names without a
+result about the disease itself; its meaning is printed in its row, since its name alone could be read as weak
+evidence. The graph also holds genes that have no level at all: genes that appear in no genetic study of the disease,
+namely the text-mined targets of the disease (Europe PMC, as Open Targets gives them, not read by the models) and the
+genes with genetic evidence in a related condition only. They are shown, as "No level", only where every gene of the
+graph is listed (the viewer's "Every gene", sheet 6 of the workbook).
+
+The ladder a snapshot uses, with its names, definitions and what each level holds, is written to
+`04.tables/ladder.json`.
 
 ### Function (gene themes)
 

@@ -59,7 +59,7 @@ import pandas as pd
 import xlsxwriter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ot_common import (CURATED, LADDER_COLUMNS, a_, MISSING, NO_ASSOCIATION, OTHER_GENES, SHARED_SIGNAL, SUP,  # noqa: E402
+from ot_common import (CURATED, LADDER_COLUMNS, a_, load_definitions, load_glosses, load_status, MISSING, NO_ASSOCIATION, OTHER_GENES, SHARED_SIGNAL, SUP,  # noqa: E402
                        ancestry_label, assign_themes, gene_tallies, is_east_asian, is_japanese, load_choices,
                        load_json, load_ladder, load_profile, load_themes, log, not_in_gene_map, not_regions_of, not_regions_sentence, num,
                        p_unicode, pub_label,
@@ -883,9 +883,9 @@ def answers(D):
     by_type = pd.Series([it['basis_type'] for g in D['choices'] for it in g['items']], dtype=str).value_counts()
     n_pub, n_ot, n_cs = region_counts(D)
     src = region_source(D)
-    gm = [f'{LADDER[1][1]} ({LADDER[1][0]}): '] + lv(1)
-    if has_gstar(D):
-        gm += [f'; {secondary(D, "brief")} (G*): '] + lv(2)
+    st1, st2 = D['STATUS'].get(1) or {}, D['STATUS'].get(2) or {}
+    gm = [f'{LADDER[1][1]} ({LADDER[1][0]}): '] + lv(1) + ([f' ({st1["brief"]})'] if st1.get('brief') else [])
+    gm += [f'; {LADDER[2][1]} (G*): '] + (lv(2) if (L.level == 2).any() else [st2.get('brief') or 'none'])
     gm += ['; associated in two or more studies: '] + lv(3) + ['.']
     reg = {'published': f'; the {n_pub} published GWAS regions with their statistics',
            'Open Targets': f'; the {n_ot} GWAS regions from Open Targets with their lead P',
@@ -1021,8 +1021,7 @@ def s_guide(wb, D, foot, summary=False):
     num_of = {k: n.split()[0] for k, n, _q in SHEETS}
     span = {name: f'{num_of[keys[0]]}–{num_of[keys[-1]]}' for name, keys, _c in PARTS}
     parts = [p_[0] for p_ in PARTS]
-    ladder = [f'1 {LADDER[1][0]}, {lower1(LADDER[1][1])}'] + ([f'2 G*, {secondary(D, "long")}'] if has_gstar(D)
-                                                               else [])
+    ladder = [f'{k} {(c + " ") if c else ""}{lower1(n)}' for k, (c, n) in LADDER.items()]
     items = [('', [('b', 'In brief')])] + [('', ['   ' + t]) for t in guide_brief(D)]
     items += [('', [('b', 'How to read')]),
               ('', [f'   The sheets answer one question each, in four parts: A, {short}\'s own genetics (sheets '
@@ -1032,10 +1031,10 @@ def s_guide(wb, D, foot, summary=False):
                     ('This summary holds the cover and the question sheets; the full workbook adds the appendix of '
                      'flat tables with filters (A1–A6).' if summary else
                      'The appendix (A1–A6) holds the flat tables, with filters.')]),
-              ('', [f'   Evidence ladder of {a_(short)} gene: ' + '; '.join(ladder) + '; 3 associated in two or '
-                    'more studies; 4 in one study; 5 a variant identified without a test; 6 tested, not associated; 7 '
-                    f'other. Levels 3–6 count findings about {short} itself; an association with an outcome within '
-                    f'{short} is shown but does not raise the level.']),
+              ('', [f'   Evidence ladder of {a_(short)} gene, the same seven levels for every disease (sheet 1 '
+                    'defines each; an empty level says why): ' + '; '.join(ladder) + f'. Levels 3–6 count findings '
+                    f'about {short} itself; an association with an outcome within {short} is shown but does not raise '
+                    'the level.']),
               ('', [f'   Gene codes: G, GWAS (for {short}, {region_def(D, "region")}; for a related condition, the top '
                     'locus-to-gene gene of a credible set)' +
                     (f'; G*, {a_(short)} region {secondary(D, "short")}' if has_gstar(D) else '') +
@@ -1220,10 +1219,14 @@ def spec_gene_map(D):
     cols = [{'h': 'Evidence level', 'w': 34, 'wrap': True}] + \
         [{'h': D['short'][t], 'w': 13, 'wrap': True, 'a': 'center'} for t in present]
     rows = []
-    for lv in sorted(L.level.unique()):
+    for lv in sorted(LADDER):                      # every level, for every disease; an empty one says why
         sub = L[L.level == lv]
         code, lab = LADDER[lv]
-        cells, tips, fills = [[('b', f'{lv}  ')] + ([('b', f'{code}  ')] if code else []) + [lab]], {}, {}
+        cells, tips, fills = [[('b', f'{lv}  ')] + ([('b', f'{code}  ')] if code else []) + [lab] +
+                              ([('g', f'\n{D["GLOSS"][lv]}')] if D['GLOSS'].get(lv) else []) +
+                              ([('g', f'\n{D["STATUS"][lv]["full"]}')] if (D['STATUS'].get(lv) or {}).get('full')
+                               else [])], \
+            {}, {}
         for j, t in enumerate(present, start=1):
             g = sub[sub.theme == t]
             cells.append(italic_list(list(g.symbol)) if len(g) else '')
@@ -1245,8 +1248,8 @@ def spec_gene_map(D):
     brief.append([f'Literature: {len(lit)} further genes reported by {D["tidy"]["disease_genetic_studies"]} genetic '
                   f'studies of {short}, ranked by what the studies found.'])
     nts = [('', [('b', 'Evidence levels')])]
-    nts += [('', [f'   {k}  ' + (f'{v[0]}  ' if v[0] else '') + v[1] + '.']) for k, v in LADDER.items()
-            if k != 2 or has_gstar(D)]
+    nts += [('', [('b', f'   {k}  ' + (f'{v[0]}  ' if v[0] else '') + v[1]), ': ' + D['DEF'].get(k, '')])
+            for k, v in LADDER.items()]
     ex = tx(D, 'within_examples')
     nts.append(('', ['   ' + basis(D, 'ladder') + ' Studies are counted, not independent samples. Levels 3–6 count '
                      f'only findings about {short} itself; an association with an outcome within {short}' +
@@ -1706,10 +1709,12 @@ def spec_shared_genes(D):
     pos, neg = by_level(g for g in lvl if lvl[g] <= 5), by_level(g for g in lvl if lvl[g] >= 6)
     groups = [(f'{short} genes with a positive result (levels 1–5)', pos, False),
               (f'{short} genes studied without a positive result (levels 6–7)', neg, False),
-              ('Other genes in three or more related conditions', sorted([g for g, k in rel_n.items() if k >= 3 and
+              (f'Genes without a level (in no genetic study of {short}), in three or more related conditions',
+               sorted([g for g, k in rel_n.items() if k >= 3 and
                                                                           g not in lvl], key=lambda g: (-rel_n[g], g)),
                False),
-              ('Other genes in two related conditions', sorted(g for g, k in rel_n.items() if k == 2 and g not in lvl),
+              (f'Genes without a level (in no genetic study of {short}), in two related conditions',
+               sorted(g for g, k in rel_n.items() if k == 2 and g not in lvl),
                True)]
     cols = [{'h': 'Gene', 'w': 12}, {'h': 'Level', 'w': 4.6, 'a': 'center', 'rot': True, 'n': 'a'},
             {'h': 'Related conditions', 'w': 6, 'a': 'right', 'rot': True, 'n': 'b'}] + \
@@ -1764,10 +1769,8 @@ def spec_shared_genes(D):
                                 if len(D['regions']) else '')[1] + ' Fill: blue G, '
               + ('pale blue G*, ' if gs else '') + 'green C, red L, gray two kinds. Hover over a code for the records '
               'behind it.']]
-    ladder = f'1 {D["LADDER"][1][0]}; ' + ('2 G*; ' if gs else '')
-    nts = [('a', [f'Evidence level of the gene in {short} (sheet {SN["gene_map"].split()[0]}): {ladder}3 associated in '
-                  'two or more studies; 4 in one; 5 variant identified without a test; 6 tested, not associated; '
-                  f'7 no result about {short} itself.']),
+    ladder = '; '.join(f'{k} {(c + " ") if c else ""}{lower1(n)}' for k, (c, n) in D['LADDER'].items())
+    nts = [('a', [f'Evidence level of the gene in {short} (sheet {SN["gene_map"].split()[0]}): {ladder}.']),
            ('b', [f'Related conditions (not counting {short}) in which the gene has genetic evidence.']),
            ('', ['G for a related condition: ' + basis(D, 'l2g') + (' G and G*' if gs else ' G') + f' for {short}: ' +
                  basis(D, 'g_codes')]),
@@ -2550,7 +2553,8 @@ def main():
     cond = read_tsv(T / 'conditions.tsv')
     LADDER, codes_, evidence_codes = load_ladder(T)
     run = json.loads(Path(a.run_params).read_text())
-    D = {'P': P, 'LADDER': LADDER, 'codes': codes_, 'evidence_codes': evidence_codes, 'run': run,
+    D = {'P': P, 'LADDER': LADDER, 'DEF': load_definitions(T), 'STATUS': load_status(T), 'GLOSS': load_glosses(T),
+         'codes': codes_, 'evidence_codes': evidence_codes, 'run': run,
          'tidy': json.loads((T / 'tidy.json').read_text()), 'conditions': cond,
          'relations': read_tsv(T / 'relations.tsv'),
          'coloc': read_tsv(T / 'colocalisation.tsv', ['disease_gene', 'disease_locus', 'node_id', 'study_id', 'clpp',

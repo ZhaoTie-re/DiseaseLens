@@ -157,15 +157,17 @@ groups:
     used_in: sheets 1, 2; evidence grid
   - key: ladder
     item: Evidence ladder of a {short} gene
-    value: 1 G or C; 2 G*; 3 associated in ≥ 2 studies; 4 associated in 1 study; 5 variant identified without a
-      test; 6 tested, not associated; 7 no result about {short} itself
+    value: the same seven levels for every disease - 1 G / C genome-wide or curated evidence; 2 G* secondary GWAS
+      analysis; 3 replicated association; 4 single-study association; 5 variant reported, not tested; 6 tested, not
+      associated; 7 no result about {short} itself (an empty level is shown with its reason)
     basis_type: source
     basis: A gene takes its strongest level. Genome-wide significance and curated gene–disease evidence (level 1)
       come first; association in two or more studies (level 3) ranks above a single study because replication is
       what makes an association credible rather than a chance finding. Studies are counted, not independent
       samples. Levels 3–6 count only findings about {short} itself; a gene whose findings concern only an outcome
       within {short} or another trait, or that a study names without an association, a variant or a negative test,
-      stays at level 7, with the reason given for each gene (user, 2026-10-20 - formerly "other result only").
+      stays at level 7, with the reason given for each gene (user, 2026-10-20 - formerly "other result only"). A
+      gene in no genetic study of {short} (a text-mined target, or a gene of a related condition) has no level.
     refs: [kraft]
     used_in: sheets 1, 2; evidence grid
   - key: themes

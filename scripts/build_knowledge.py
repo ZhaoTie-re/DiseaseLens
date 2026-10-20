@@ -45,7 +45,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ot_common import (MISSING, a_, NO_ASSOCIATION, NO_GENE, OTHER_GENES, SHARED_SIGNAL, assign_themes,  # noqa: E402
+from ot_common import (MISSING, a_, load_definitions, load_status, NO_ASSOCIATION, NO_GENE, OTHER_GENES, SHARED_SIGNAL, assign_themes,  # noqa: E402
                        gene_tallies,
                        is_east_asian, is_japanese, load_choices, load_json, load_ladder, load_profile, load_themes,
                        log, not_in_gene_map, not_regions_of, not_regions_sentence, num, p_unicode, read_tsv, study_population, tally_text)
@@ -231,6 +231,7 @@ def main():
                                                 'association_note', 'variant_name'])
     cmf = read_tsv(T / 'disease_methods.tsv', ['pmid'])
     LADDER, codes, evidence_codes = load_ladder(T)
+    DEFS, STATUS = load_definitions(T), load_status(T)
     CODES = list(codes)
     Q = Path(a.curated)
     pubs, clog = read_tsv(Q / 'publications.tsv'), read_tsv(Q / 'curation_log.tsv')
@@ -347,8 +348,12 @@ def main():
         parts = [f'{short.get(t, t)}: ' + ', '.join(sub[sub.theme == t].symbol)
                  for t in theme_cols + sorted(set(sub.theme) - set(theme_cols)) if (sub.theme == t).any()]
         code, text = LADDER[lv]
-        rows.append([lv, code or MISSING, text, len(sub), '; '.join(parts) or MISSING])
-    md += md_table(['Level', 'Code', 'Evidence', 'Genes', 'Genes by function'], rows) + ['']
+        rows.append([lv, code or MISSING, text, DEFS.get(lv, ''), len(sub), '; '.join(parts) or MISSING,
+                     (STATUS.get(lv) or {}).get('full') or ''])
+    md += ['The same seven levels for every disease. "In this snapshot" says what an empty or partly empty level '
+           'holds, so that it is not read as missing data.', '']
+    md += md_table(['Level', 'Code', 'Name', 'Definition', 'Genes', 'Genes by function', 'In this snapshot'],
+                   rows) + ['']
     # the curated gene-disease evidence of the disease itself (code C; a gene with G as well keeps G)
     curg = lad[lad.curated_sources.ne('')]
     cv = value('curated_core')

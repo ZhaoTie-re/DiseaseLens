@@ -44,7 +44,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ot_common import (NO_GENE, a_, OTHER_GENES, SHARED_SIGNAL, assign_themes, gene_tallies, load_ladder, relates,  # noqa: E402
+from ot_common import (NO_GENE, a_, load_glosses, load_status, OTHER_GENES, SHARED_SIGNAL, assign_themes, gene_tallies, load_ladder, relates,  # noqa: E402
                        load_profile, load_themes, log, not_in_gene_map, num, read_tsv)
 
 # colors of the categories of related conditions: the profile's clinical categories in their order, then any other
@@ -137,9 +137,8 @@ def evidence_grid(T, out, S, pal, C, themes, curated_min):
     cols = [t['name'] for t in themes if (L.theme == t['name']).any()] + \
         ([OTHER_GENES] if (L.theme == OTHER_GENES).any() else []) + \
         sorted(set(L.theme) - {t['name'] for t in themes} - {OTHER_GENES})
-    # the level of a secondary analysis of a published GWAS (G*) only for a disease that has one
-    levels = [lv for lv in sorted(C.LADDER) if not (C.LADDER[lv][0] == 'G*' and not (L.level == lv).any()
-                                                    and not T['regions'].code.eq('G*').any())]
+    # every level, for every disease; an empty level says why it is empty
+    levels = sorted(C.LADDER)
     LH, CW, LW, HH, NW, FS = 0.27, 1.75, 4.1, 0.78, 0.55, 10.5      # sizes in inches; gene font size
     cell = {(lv, c): list(L[(L.level == lv) & (L.theme == c)].itertuples()) for lv in levels for c in cols}
     tag = lambda g: g.symbol  # noqa: E731
@@ -161,6 +160,8 @@ def evidence_grid(T, out, S, pal, C, themes, curated_min):
     place = {k: flow(v) for k, v in cell.items()}
     lines = {lv: max([1] + [p[-1][2] + 1 for (lv_, _c), p in place.items() if lv_ == lv and p]) for lv in levels}
     labs = {lv: textwrap.wrap((f'{C.LADDER[lv][0]} · ' if C.LADDER[lv][0] else '') + C.LADDER[lv][1], 31)
+            + (textwrap.wrap(f'({C.GLOSS[lv]})', 31) if C.GLOSS.get(lv) else [])
+            + (textwrap.wrap(f'({C.STATUS[lv]["brief"]})', 31) if (C.STATUS.get(lv) or {}).get('brief') else [])
             for lv in levels}
     # a row is as tall as its gene lines, or as its label when that runs to three lines or more
     rh = {lv: max(lines[lv] * LH, 0.19 * len(labs[lv]) - 0.11) + 0.2 for lv in levels}
@@ -229,11 +230,8 @@ def evidence_grid(T, out, S, pal, C, themes, curated_min):
     for j in range(1, len(cols)):
         ax.plot([LW + j * CW] * 2, [HH, y], color=S.NEUTRAL, lw=0.6, zorder=0)
     ax.plot([0.05, W - 0.05], [y, y], color=S.INK, lw=1.2)
-    _allpub, anypub, anyot = regions_kind(T['regions'])
-    curated = 'C' in C.LADDER[1][0] or L.code.eq('C').any()
-    gw = 'Published GWAS' if anypub else 'GWAS' if anyot else ''
-    top = (gw + ', curated' if gw and curated else 'Curated' if curated else gw) or 'GWAS'
-    for (a, b), text in (((1, 2), top), ((3, 7), f'Genetic studies of {s}')):   # the two sources
+    # the two sources of the ladder, the same for every disease
+    for (a, b), text in (((1, 2), 'GWAS,\ncurated'), ((3, 7), f'Genetic studies of {s}')):
         if a not in ys or b not in ys:
             continue
         y0, y1 = ys[a][0] + 0.08, ys[b][1] - 0.08
@@ -652,9 +650,8 @@ def gene_map(T, out, S, pal, C, l2g_min, curated_min):
               ('', ''),
               ('Rows and columns', 'h'),
               (f'Rows: all {ng} genes studied genetically in {s}, by evidence level (square at the left: '
-               f'1 {C.LADDER[1][0]}, ' + (f'2 {C.LADDER[2][0]}, ' if has_gs else '') + '3 associated in two or more '
-               'studies, 4 in one, 5 variant '
-               f'identified without a test, 6 tested, not associated, 7 no result about {s} itself), then by the number of related '
+               + ', '.join(f'{k} {(c + " ") if c else ""}{n[:1].lower() + n[1:]}' for k, (c, n) in C.LADDER.items())
+               + '), then by the number of related '
                f'conditions in which the gene has G or C evidence (right). {sum(1 for g in genes if not nrel[g])} '
                f'genes have no such condition: they are specific to {s} in this map.', ''),
               (f'Columns: {s}, then the {nn - 1} related conditions with G or C evidence for at least one of these '
@@ -848,9 +845,10 @@ def readme(st, D, C, tidy, a, themes):
         mixed = not auto and any(t.get('automatic') for t in themes)
         out['evidence_grid'] = (
             'Rows: the evidence ladder, strongest first. ' + gwas_levels(C, rg, L, a.curated_min, readme=True) +
-            f' Levels 3–7 come from the {eg["studies"]} genetic studies of {s} in PubMed: associated in two or more '
-            'studies; in one; a variant identified without an association test; tested, not associated; no result '
-            f'about {s} itself (the reason for each gene is in the workbook). Levels 3–6 count only findings about {s} itself: a gene associated only with an outcome within '
+            f' Levels 3–7 come from the {eg["studies"]} genetic studies of {s} in PubMed: '
+            + '; '.join(f'{k} {C.LADDER[k][1][:1].lower() + C.LADDER[k][1][1:]}' for k in range(3, 8))
+            + ' (the reason for each gene at level 7 is in the workbook). Every disease shows all seven levels; an '
+            'empty level says why. Levels 3–6 count only findings about {s} itself: a gene associated only with an outcome within '
             f'{s}' + (f' (e.g. {", ".join(within[:2])})' if within else '') + ' stays at level 7. ' +
             ('Columns: the function of the gene, its Reactome top-level pathway (gene theme). ' if auto else
              ('Columns: the function of the gene (gene theme): the curated themes, each with its source, and for a '
@@ -1017,7 +1015,9 @@ def main():
     LADDER, codes, evidence_codes = load_ladder(T)
     cats = list(P.category_order)
     cats += sorted(set(D['conditions'].category) - set(cats))       # categories the profile does not name: last
-    C = SimpleNamespace(P=P, short=P.short, LADDER=LADDER, CODES=list(codes), KIND=evidence_codes, cats=cats,
+    C = SimpleNamespace(P=P, short=P.short, LADDER=LADDER, STATUS=load_status(T), GLOSS=load_glosses(T),
+                        CODES=list(codes),
+                        KIND=evidence_codes, cats=cats,
                         labels={**(P.d.get('labels') or {}), **(P.text('figures', 'labels', {}) or {})},
                         text=lambda k, d='': P.text('figures', k, d) or d,
                         gwas_pmid=str(((P.gwas or {}).get('source') or {}).get('pmid', '') or ''))

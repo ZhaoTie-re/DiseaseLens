@@ -708,31 +708,118 @@ def load_choices(P, run_params, tables=None):
 # (key: ladder). Level 1: a genome-wide significant GWAS region of the disease (G) or curated gene-disease evidence
 # for it (C); level 2: a region significant only in a secondary analysis of a published GWAS (G*); levels 3-7: the
 # genetic studies in the literature. tidy_graph.py writes the ladder a snapshot uses to 04.tables/ladder.json.
-LITERATURE_LEVELS = {3: ('', 'Associated in two or more studies'),
-                     4: ('', 'Associated in one study'),
-                     5: ('', 'Variant identified, no association test'),
-                     6: ('', 'Tested, not associated'),
-                     7: ('', 'No result about {short} itself')}     # each gene with its reason (level_note)
+# the name of each level, the same for every disease (rows of the grids and figures); its definition below
+LADDER_NAMES = {1: ('G / C', 'Genome-wide or curated evidence'),
+                2: ('G*', 'Secondary GWAS analysis'),
+                3: ('', 'Replicated association'),
+                4: ('', 'Single-study association'),
+                5: ('', 'Variant reported, not tested'),
+                6: ('', 'Tested, not associated'),
+                7: ('', 'No result about {short} itself')}      # each gene with its reason (level_note)
+LITERATURE_LEVELS = {k: v for k, v in LADDER_NAMES.items() if k >= 3}
+# the meaning shown in the row of a level whose name alone could be misread
+LADDER_GLOSSES = {7: 'named in a genetic study of {short}, without a result about {short} itself: not evidence for '
+                     'it'}
+# a gene of the graph without a level: in no genetic study of the disease
+NO_LEVEL = ('No level: in no genetic study of {short} (a text-mined {short} target, or a gene with genetic evidence in '
+            'a related condition)')
 
 
-def ladder_spec(P, with_curated):
-    """The ladder of a disease: {level: (code, label)} and {code: label}. Level 1 names C only when a gene of the
-    snapshot has curated evidence."""
+def ladder_definitions(P):
+    """{level: definition}: what each level of the ladder means, the same for every disease, followed by the
+    disease's own wording where its profile gives one ('CTEPH: ...')."""
+    s = P.short
+    lab = (P.gwas or {}).get('labels') or {}
+    own = lambda code: f' {s}: {P.fill(lab[code])}.' if lab.get(code) else ''  # noqa: E731
+    return {
+        1: f'A gene of a genome-wide significant GWAS region of {s} (G: a region of a published GWAS, or a credible '
+           f'genome-wide significant signal of its GWAS in Open Targets), or with curated gene–disease evidence for '
+           f'{s} (C: ClinGen, Gene2Phenotype, PanelApp, Orphanet, ClinVar with a reviewed pathogenic record, UniProt, '
+           f'gene burden).' + own('G'),
+        2: 'A gene of a region genome-wide significant only in a secondary analysis of a published GWAS (G*), such as '
+           'an analysis that leverages a correlated trait.' + own('G*'),
+        3: f'Associated with {s} in two or more genetic studies: replication makes an association credible.',
+        4: f'Associated with {s} in one genetic study.',
+        5: f'A variant reported in people with {s} (case reports, sequencing series), without an association test.',
+        6: f'Tested in genetic studies of {s} and not associated in any.',
+        7: f'Named in a genetic study of {s} without a result about {s} itself: a result about an outcome within it or '
+           'about another trait, or no association, variant or negative test; the reason is given for each gene.'}
+
+
+def level_status(lv, P, L):
+    """(brief, full): what a level of the ladder holds in this snapshot, when that needs saying, so that an empty or
+    partly empty level is never read as missing data. Every disease shows the same seven levels. L: the ladder table
+    of the snapshot (level, code, curated_sources). ('', '') when the level speaks for itself."""
+    s = P.short
+    sub = L[L.level.astype(int) == lv] if len(L) else L
+    n = len(sub)
+    if lv == 1:
+        g = int(sub.code.eq('G').sum()) if n else 0
+        c = int((sub.code.eq('C') | sub.curated_sources.ne('')).sum()) if n else 0
+        if not n:
+            return ('Empty: no GWAS region, no curated evidence',
+                    f'Empty: {s} has no credible genome-wide significant GWAS region and no curated gene–disease '
+                    'evidence in this snapshot.')
+        if not g:
+            return ('C only: no GWAS region',
+                    f'C only: {s} has no credible genome-wide significant GWAS region in this snapshot (see the GWAS '
+                    'regions); the genes at this level have curated gene–disease evidence.')
+        if not c:
+            return ('G only: no curated evidence',
+                    f'G only: Open Targets holds no curated gene–disease evidence for {s} that the rules keep; the '
+                    'genes at this level come from its GWAS regions.')
+        return '', ''
+    if n:
+        return '', ''
+    if lv == 2:
+        if 'G*' in set(((P.gwas or {}).get('codes') or {}).values()):
+            return ('Empty in this snapshot',
+                    f'Empty: no region of the published GWAS of {s} is significant only in its secondary analysis.')
+        return ('Empty: no published secondary GWAS analysis',
+                f'Empty: this level holds the genes of a region significant only in a secondary analysis of a '
+                f'published GWAS, and none is known for {s} (its profile names none). The level is kept so that the '
+                'ladder of every disease has the same seven levels.')
+    return 'Empty in this snapshot', 'Empty: no gene of this snapshot meets this level.'
+
+
+def ladder_spec(P, with_curated=True):
+    """The ladder of a disease: {level: (code, name)}, the same seven levels for every disease (an empty level is
+    said in its row, level_status); {level: definition}; {code: what the code of a gene's evidence means}."""
     lab = (P.gwas or {}).get('labels') or {}
     g = P.fill(lab.get('G', 'Genome-wide significant in a GWAS of {short}'))
     gs = P.fill(lab.get('G*', 'Genome-wide significant only in a secondary analysis of a published GWAS'))
     c = P.fill('Curated gene–disease evidence for {short}')
-    levels = {1: ('G / C', f'{g}, or {c[0].lower()}{c[1:]}') if with_curated else ('G', g), 2: ('G*', gs)}
-    levels.update({k: (code, P.fill(label)) for k, (code, label) in LITERATURE_LEVELS.items()})
+    levels = {k: (code, P.fill(name)) for k, (code, name) in LADDER_NAMES.items()}
     codes = {'G': g, 'G*': gs, 'C': c, 'L': P.fill('A positive finding in a genetic study of {short}')}
     evidence = {'GWAS': 'G', P.secondary_label: 'G*', 'Mendelian': 'C', 'Literature': 'L'}
-    return {'levels': {str(k): list(v) for k, v in levels.items()}, 'codes': codes, 'evidence_codes': evidence}
+    return {'levels': {str(k): list(v) for k, v in levels.items()},
+            'definitions': {str(k): v for k, v in ladder_definitions(P).items()},
+            'glosses': {str(k): P.fill(v) for k, v in LADDER_GLOSSES.items()},
+            'codes': codes, 'evidence_codes': evidence}
 
 
 def load_ladder(tables):
-    """(LADDER {level: (code, label)}, codes {code: label}, evidence_codes {evidence label: code}) of a snapshot."""
+    """(LADDER {level: (code, name)}, codes {code: label}, evidence_codes {evidence label: code}) of a snapshot."""
     d = load_json(Path(tables) / 'ladder.json')
     return ({int(k): tuple(v) for k, v in d['levels'].items()}, d['codes'], d['evidence_codes'])
+
+
+def load_status(tables):
+    """{level: {'brief', 'full'}}: what each level holds in a snapshot when that needs saying (level_status)."""
+    d = load_json(Path(tables) / 'ladder.json')
+    return {int(k): v for k, v in (d.get('status') or {}).items()}
+
+
+def load_glosses(tables):
+    """{level: the meaning shown in its row} of a snapshot's ladder (LADDER_GLOSSES)."""
+    d = load_json(Path(tables) / 'ladder.json')
+    return {int(k): v for k, v in (d.get('glosses') or {}).items()}
+
+
+def load_definitions(tables):
+    """{level: definition} of a snapshot's ladder (its names, for a ladder written before the definitions)."""
+    d = load_json(Path(tables) / 'ladder.json')
+    return {int(k): v for k, v in (d.get('definitions') or {k: n for k, (_c, n) in d['levels'].items()}).items()}
 
 
 LADDER_COLUMNS = ['symbol', 'ensembl_id', 'level', 'code', 'level_label', 'theme', 'n_studies', 'associated',
