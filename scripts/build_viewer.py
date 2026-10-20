@@ -662,8 +662,27 @@ function diagram(id) {
   const el = (tag, at) => { const x = document.createElementNS(ns, tag);
     for (const [k, v] of Object.entries(at)) x.setAttribute(k, v); return x; };
   const me = N.get(id);
+  // labels are shortened to fit; hovering a node (its dot or its label) shows its full name, kind and identifier, a
+  // publication's title, and the edge that links it to this node
+  const tip = h('div', {class: 'cmap-tip', role: 'tooltip'}), wrap = h('div', {style: 'position:relative'}, svg, tip);
+  const place = e => {
+    const r = wrap.getBoundingClientRect();
+    let x = e.clientX - r.left + 14;
+    if (x + tip.offsetWidth > r.width) x = Math.max(0, e.clientX - r.left - tip.offsetWidth - 14);
+    tip.style.left = x + 'px'; tip.style.top = (e.clientY - r.top + 14) + 'px';
+  };
+  const hover = (target, n, via) => {
+    const kids = () => [h('b', {class: n.type === 'gene' ? 'gene' : null}, n.label),
+      h('div', {class: 'k'}, `${TYPE_NAME[n.type] || n.type} · ${n.id}`),
+      n.a.title && n.a.title !== n.label ? h('div', {}, n.a.title) : null,
+      via ? h('div', {class: 'k', style: 'margin-top:3px'}, `${via.replace(/_/g, ' ')} — ${D.schema.edges[via] || ''}`)
+        : null].filter(Boolean);
+    target.addEventListener('mouseenter', e => { tip.replaceChildren(...kids()); tip.style.display = 'block'; place(e); });
+    target.addEventListener('mousemove', place);
+    target.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+  };
   const labeled = others.length <= 36, nR = Math.ceil(others.length / 2), nL = others.length - nR;
-  others.forEach(([o], i) => {
+  others.forEach(([o, via], i) => {
     // labeled: right half top to bottom, then left half bottom to top, evenly spaced in height, so labels never
     // collide; unlabeled: a full circle
     const right = i < nR, m = right ? nR : nL, k = right ? i : nL - 1 - (i - nR);
@@ -673,9 +692,9 @@ function diagram(id) {
     const x = cx + dx, y = cy + dy, n = N.get(o);
     if (!n) return;
     svg.append(el('line', {x1: cx, y1: cy, x2: x, y2: y, stroke: '#c9ced6', 'stroke-width': 1}));
-    const g = el('a', {href: href(o)});
-    const c = el('circle', {cx: x, cy: y, r: 7, fill: COLOR(n.type), stroke: '#fff', 'stroke-width': 1.5});
-    const tt = el('title', {}); tt.textContent = `${TYPE_NAME[n.type]}: ${n.label}`; c.append(tt); g.append(c);
+    const g = el('a', {href: href(o), 'aria-label': `${TYPE_NAME[n.type]}: ${n.label}`});
+    g.append(el('circle', {cx: x, cy: y, r: 7, fill: COLOR(n.type), stroke: '#fff', 'stroke-width': 1.5}));
+    hover(g, n, via);
     if (labeled) {
       const lab = n.label.length > 26 ? n.label.slice(0, 25) + '…' : n.label;
       const t = el('text', {x: x + (right ? 10 : -10), y: y + 4, 'text-anchor': right ? 'start' : 'end'});
@@ -683,11 +702,13 @@ function diagram(id) {
     }
     svg.append(g);
   });
-  svg.append(el('circle', {cx, cy, r: 13, fill: COLOR(me.type), stroke: '#fff', 'stroke-width': 2}));
+  const center = el('g', {'aria-label': `${TYPE_NAME[me.type]}: ${me.label}`});
+  center.append(el('circle', {cx, cy, r: 13, fill: COLOR(me.type), stroke: '#fff', 'stroke-width': 2}));
   const t = el('text', {x: cx, y: cy + 30, 'text-anchor': 'middle', 'font-weight': 700});
-  t.textContent = me.label.length > 40 ? me.label.slice(0, 39) + '…' : me.label; svg.append(t);
+  t.textContent = me.label.length > 40 ? me.label.slice(0, 39) + '…' : me.label; center.append(t);
+  hover(center, me, null); svg.append(center);
   const types = [...new Set(others.map(([o]) => N.get(o)?.type).filter(Boolean))];
-  return h('div', {}, svg, h('div', {class: 'legend'}, types.map(x => h('span', {}, dot(x), TYPE_NAME[x]))),
+  return h('div', {}, wrap, h('div', {class: 'legend'}, types.map(x => h('span', {}, dot(x), TYPE_NAME[x]))),
            h('div', {class: 'note'}, total > others.length ? `${others.length} of ${total} neighbors shown; every ` +
              'neighbor is listed in the tables.' : `${total} neighbors. Click one to open it.`));
 }
