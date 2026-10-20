@@ -1,0 +1,27 @@
+# The PubMed searches and the pre-screen shared by every disease. Read by profile.py (the queries, written into each
+# disease's profile.json) and extract_genetics.py (the pre-screen). A disease's profile.yaml can give its own `terms`
+# (the disease in title or abstract) or a whole `query`; the blocks below complete them.
+
+# The genetic-study search: <the disease's terms> AND <genetic_terms>
+genetic_terms: '(gene*[tiab] OR genetic*[tiab] OR polymorphism*[tiab] OR variant*[tiab] OR mutation*[tiab] OR
+  genome-wide[tiab] OR GWAS[tiab] OR HLA[tiab] OR sequencing[tiab] OR genotyp*[tiab] OR allele*[tiab] OR exome[tiab])'
+
+# The search for clinical relations (diseases without a curated list): <the disease's terms> AND <relation_designs>
+# AND <relation_words>. The designs that state a clinical relation: guidelines and consensus statements, meta-analyses
+# and systematic reviews, cohort and case-control studies (MeSH, with their narrower terms).
+relation_designs: '(Practice Guideline[pt] OR Guideline[pt] OR Consensus Development Conference[pt] OR
+  Meta-Analysis[pt] OR Systematic Review[pt] OR Cohort Studies[mh] OR Case-Control Studies[mh])'
+relation_words: '(risk[tiab] OR associat*[tiab] OR comorbid*[tiab] OR complicat*[tiab] OR predispos*[tiab] OR
+  preval*[tiab] OR inciden*[tiab])'
+
+# The deterministic pre-screen of the genetic-study search, before any model reads a record: records of these
+# publication types report no original genetic data, and an original genetic study names one of these terms in its
+# title or abstract (case-insensitive regular expressions; CTEPH, 2026-10-16: 98 of 471 records kept, and all 15
+# original genetic studies of the benchmark).
+prescreen:
+  excluded_types: [Review, Systematic Review, Practice Guideline, Guideline, Editorial, Comment, News,
+                   Consensus Development Conference]
+  genetic_terms: ['polymorphism', 'genotyp', 'allele', 'mutation', 'sequencing', 'exome', 'genome-wide', 'GWAS',
+                  '\bHLA\b', '\bSNPs?\b', '\brs\d{3,}', 'germline', 'somatic', 'clonal hematopoiesis',
+                  'clonal haematopoiesis', 'CHIP', 'heritab', 'Mendelian randomi', 'copy number', 'pathogenic variant',
+                  'rare variant', 'missense', 'haplotype', 'linkage']

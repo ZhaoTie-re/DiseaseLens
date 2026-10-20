@@ -1,8 +1,10 @@
-# Every choice that decides what enters the CTEPH knowledge graph: the value used and its basis.
+# Every choice that decides what enters a disease's knowledge graph: the value used and its basis. Shared by every
+# disease; a disease's own diseases/<key>/choices.yaml adds items, and replaces the fields of an item with the same
+# key (a field set to null is removed). profile.py merges the two and fills in {short}, {name} and {Name}.
 #
-# Read by the workbook (sheet "10 Choices and basis", and the footnotes that name a threshold), the knowledge
-# base (section "Choices and their basis") and the slides. When `param` is given, the value shown is the one
-# the run used (from its parameters), never a copy typed here.
+# Read by the workbook (sheet "11 Choices and basis", and the footnotes that name a threshold), the knowledge base
+# (section "Choices and their basis") and the slides. When `param` is given, the value shown is the one the run used
+# (from its parameters), never a copy typed here.
 #
 # basis_type:
 #   source      a publication or the documentation of a data source; `refs` names entries of `references`
@@ -10,9 +12,10 @@
 #   data check  a check on this snapshot's data that the choice passed; the check is computed and shown
 #   design      a decision of this project, with its reason
 #   user        decided with the user, on the date given
+# check: a data check computed on the snapshot (ot_common.load_choices): regions, single_region, curated_genes,
+# readers; benchmark: PMIDs the literature search must find, keep and include.
 # Every statement attributed to a source was checked against its full text or documentation (2026-10-17).
-# verify.sh checks that every result-shaping parameter of the pipeline has an entry, that every entry has a
-# basis, and that every reference resolves.
+# verify.sh checks that every entry has a basis and that every reference resolves.
 groups:
 
 - name: Scope and sources
@@ -25,12 +28,21 @@ groups:
       release of the day, so that a later snapshot can be compared with this one.
     used_in: every step
   - key: disease
-    item: CTEPH identifier
+    item: '{short} identifier'
     param: DiseaseCore
     basis_type: source
-    basis: The Experimental Factor Ontology term for chronic thromboembolic pulmonary hypertension, under which
-      Open Targets holds CTEPH.
+    basis: The Open Targets disease identifier (EFO or MONDO) of {name}, given in the disease profile.
     refs: [ot]
+    used_in: every step
+  - key: evidence_scope
+    item: Open Targets evidence of {short}
+    value: the disease and its descendants (targets, text-mined literature, GWAS, curated genes), with the entries its
+      profile names in evidence_also
+    basis_type: user
+    basis: Decided with the user (2026-10-20). Open Targets maps evidence to the most specific entry, and a disease's
+      subtypes are part of it. A grouping name ("A and/or B") joins diseases that Open Targets can hold as entries of
+      their own, with their literature; a new profile proposes such an entry (evidence_also) and says when the
+      disease itself has no literature or GWAS evidence, and the products name the entries whose evidence is merged.
     used_in: every step
   - key: sources
     item: Data sources
@@ -43,9 +55,9 @@ groups:
     used_in: every step
   - key: external_only
     item: External knowledge only
-    value: none of the project's own results
+    value: no results of the user's own studies
     basis_type: user
-    basis: Decided with the user (2026-10-16), so that the graph can be used to interpret the project's signals
+    basis: Decided with the user (2026-10-16), so that the graph can be used to interpret a study's own signals
       without circularity.
     used_in: every step
   - key: excluded
@@ -55,95 +67,172 @@ groups:
     basis: Decided with the user (2026-10-16); they do not bear on the interpretation of genetic signals.
     used_in: scope
 
-- name: CTEPH genetics
+- name: '{short} genetics'
   items:
   - key: published_regions
-    item: GWAS regions of CTEPH
-    value: the 9 genome-wide significant regions of the CTEPH GWAS, as published
-    basis_type: source
-    basis: The only GWAS of CTEPH reports 9 regions at genome-wide significance (Table 1). Open Targets holds no
-      summary statistics for this study and fine-mapped only some of them, so the regions are taken from the
-      publication and their status in Open Targets is shown beside them.
-    refs: [liley]
-    check: published_regions
+    item: GWAS regions of {short}
+    value: the genome-wide significant credible sets of the GWAS of {short} in Open Targets, merged when their lead
+      variants lie close together
+    basis_type: design
+    basis: Without a published table of regions in the disease profile, the regions are those Open Targets
+      fine-mapped for the disease's own GWAS. Credible sets of several studies at one locus are one region.
+    check: regions
     used_in: sheets 1, 2, 5; evidence grid, regions figure
+  - key: region_window
+    item: Width of a GWAS region
+    param: RegionWindowKb
+    format: lead variants within {v} kb
+    basis_type: design
+    basis: Credible sets of several GWAS of the disease at one locus are one region when their lead variants lie this
+      close; the usual span of linkage disequilibrium around a lead variant, not tuned.
+    used_in: sheets 1, 5
+  - key: genome_wide
+    item: Genome-wide significance of a GWAS region
+    param: GenomeWideP
+    format: lead P < {v}
+    basis_type: source
+    basis: The conventional genome-wide significance threshold for common variants in European-ancestry GWAS.
+    refs: [kraft]
+    used_in: sheets 1, 2, 5
+  - key: region_mac
+    item: A credible lead of a GWAS region from Open Targets - copies of the minor allele
+    param: RegionMinMac
+    format: at least {v} expected copies of the lead's minor allele in the smaller group of its study (2 x n x MAF;
+      MAF of the study's largest ancestry group, gnomAD as Open Targets gives it)
+    basis_type: source
+    basis: Rare variants are evidence when they are credible (user, 2026-10-20). A case-control test needs about 25
+      copies of an allele in the smaller group to reach genome-wide significance, and fewer give miscalibrated tests;
+      the Neale lab filters the UK Biobank GWAS of binary traits so. A lead below it, or a rare lead above the P of
+      a rare variant, still makes a region when another GWAS study of the disease has a genome-wide significant
+      credible set within the region window (replication); otherwise it is listed with its reason and is no region
+      (IPAH, 2026-10-20 - the fourteen signals of one biobank PheCode GWAS had 0 to 23 expected copies in its cases).
+      The regions of a published table are as published.
+    refs: [neale2017, kraft]
+    used_in: sheets 1, 2, 5
+  - key: region_rare_p
+    item: A credible lead of a GWAS region from Open Targets - P of a rare lead
+    param: RareVariantP
+    format: P < {v} for a lead rarer than the frequency of a common variant (below)
+    basis_type: source
+    basis: P < 5e-8 corrects for the common variants of the genome; tested together with rare variants, a study of
+      European, Asian or admixed samples needs about 5e-9 (1e-9 for African samples).
+    refs: [pulit2017]
+    used_in: sheets 1, 2, 5
+  - key: region_maf
+    item: A credible lead of a GWAS region from Open Targets - a rare lead
+    param: RegionMinMaf
+    format: minor allele frequency below {v} in the study's largest ancestry group
+    basis_type: design
+    basis: The frequency below which a lead is a rare variant and is held to the P of a rare variant (above).
+    used_in: sheets 1, 2, 5
   - key: region_names
     item: Name of a GWAS region
-    value: the gene the publication reports; the locus-to-gene genes shown beside it
+    value: the top locus-to-gene gene, when its score reaches the locus-to-gene threshold; otherwise the position
+      of the lead variant
     basis_type: source
-    basis: The locus-to-gene score is a prediction; at the FGG region its top gene (FGA, 0.44) is below the
-      score this project accepts, while the publication names FGG.
-    refs: [liley, mountjoy]
-    used_in: every sheet that names a CTEPH region
+    basis: The locus-to-gene score predicts the causal gene of a credible set; below the threshold the prediction
+      is too uncertain to name the region or to give a gene the code G.
+    refs: [mountjoy]
+    used_in: every sheet that names a GWAS region
   - key: g_codes
-    item: G and G* (CTEPH GWAS genes)
-    value: G, CTEPH meta-analysis P < 5 × 10⁻⁸; G*, significant only after leveraging PE (V < 5 × 10⁻⁸)
+    item: G and G* (GWAS genes of {short})
+    value: G, lead P < 5 × 10⁻⁸ in a GWAS of {short}; G*, significant only in a secondary analysis of a published
+      GWAS
     basis_type: source
-    basis: The publication's thresholds. Its three tiers all correspond to genome-wide significance of the overall
-      P value; four further regions (F2, TSPAN15, SLC44A2, F5/NME7) reach it only through the co-analysis with
-      PE, whose V values are P values adjusted for the genetic similarity of CTEPH and PE. They are marked apart.
-    refs: [liley]
+    basis: P < 5 × 10⁻⁸ is the conventional genome-wide significance threshold. G* is used only when a published
+      table of regions names regions that reach it only through a secondary analysis; they are marked apart.
+    refs: [kraft]
     used_in: sheets 1, 2, 6; evidence grid, gene map
-  - key: ladder
-    item: Evidence ladder of a CTEPH gene
-    value: 1 G; 2 G*; 3 associated in ≥ 2 studies; 4 associated in 1 study; 5 variant identified without a test;
-      6 tested, not associated; 7 other result only
+  - key: curated_core
+    item: C (curated gene evidence for {short})
+    param: MendelianMin
+    format: Open Targets source score ≥ {v}; ClinVar alone, a pathogenic record of two stars or more
     basis_type: source
-    basis: A gene takes its strongest level. Genome-wide significance (levels 1–2) follows the GWAS; association
-      in two or more studies (level 3) ranks above a single study because replication is what makes an
-      association credible rather than a chance finding. Studies are counted, not independent samples. Levels 3–6
-      count only findings about CTEPH itself; a gene whose findings concern only an outcome within CTEPH (e.g.
-      GNB3) stays at level 7.
-    refs: [liley, kraft]
+    basis: The rule used for the curated evidence of the related conditions, applied to {short} itself and its
+      ontology descendants (ClinGen, Gene2Phenotype, PanelApp, Orphanet, ClinVar, UniProt, gene burden); ClinVar
+      alone counts only with a pathogenic or likely pathogenic record of two stars or more. A gene with such
+      evidence is placed at level 1 with the code C.
+    refs: [otdocs_evidence, otdocs_assoc]
+    check: curated_genes
+    used_in: sheets 1, 2; evidence grid
+  - key: ladder
+    item: Evidence ladder of a {short} gene
+    value: 1 G or C; 2 G*; 3 associated in ≥ 2 studies; 4 associated in 1 study; 5 variant identified without a
+      test; 6 tested, not associated; 7 other result only
+    basis_type: source
+    basis: A gene takes its strongest level. Genome-wide significance and curated gene–disease evidence (level 1)
+      come first; association in two or more studies (level 3) ranks above a single study because replication is
+      what makes an association credible rather than a chance finding. Studies are counted, not independent
+      samples. Levels 3–6 count only findings about {short} itself; a gene whose findings concern only an outcome
+      within {short} stays at level 7.
+    refs: [kraft]
     used_in: sheets 1, 2; evidence grid
   - key: themes
     item: Function of a gene (gene theme)
-    value: 8 themes, each with its basis
+    value: the Reactome top-level pathway of the gene
     basis_type: source
-    basis: Genes are grouped by the function their sources assign them, and each theme names its source (the
-      fibrinogen chains; determinants of VWF and FVIII levels; inherited thrombophilia and VTE loci; HLA; clonal
-      hematopoiesis; PAH genes curated by ClinGen; warfarin pharmacogenetics). Genes no source groups are listed
-      as "Other genes".
-    refs: [sabater, ash2023, germain, jaiswal, genovese, welch, cpic, uniprot]
+    basis: Without curated gene themes in the disease profile, each gene joins its Reactome top-level pathway that
+      holds the most of the disease's genes ("Disease", a mirror of disease variants, is not used). Genes without a
+      Reactome pathway are listed as "Other genes".
+    refs: [reactome]
     used_in: sheets 1, 2; evidence grid
 
 - name: Related conditions
   items:
   - key: categories
     item: Categories of related conditions
-    value: precursor / spectrum; risk factor; comorbidity; intermediate trait; PH group
-    basis_type: source
-    basis: Chosen with the user (2026-10-16) and grounded in the guidelines. The 2022 ESC/ERS guidelines place
-      CTEPH in group 4 of pulmonary hypertension and list its risk factors (intravascular devices, inflammatory
-      bowel disease, essential thrombocythemia, polycythemia vera, splenectomy, antiphospholipid syndrome,
-      thyroid hormone replacement, malignancy); the ERS statement places CTEPH within chronic thromboembolic
-      pulmonary disease (CTEPD).
-    refs: [humbert, delcroix]
+    value: precursor / spectrum; risk factor; comorbidity; intermediate trait; the disease group of the ontology
+    basis_type: design
+    basis: The kinds of clinical relation a guideline or study states, and the neighbors of the disease in its
+      ontology, kept apart from relations by a shared genetic signal only.
     used_in: sheet 4; condition map
+  - key: relations_source
+    item: Source of the clinical relations
+    value: a curated list with verbatim quotes in the disease profile; else PubMed guidelines, meta-analyses and
+      systematic reviews read by two independent language-model readers
+    basis_type: user
+    basis: Decided with the user (2026-10-19). Every relation keeps a verbatim quote of its PubMed abstract, and a
+      relation read from the literature must be found by both readers or confirmed by an adjudicating call; a
+      relation that rests on one publication is marked as weak.
+    used_in: sheet 4
   - key: clinical_rule
     item: Clinical relation
-    value: a PubMed title or abstract states the relation; its sentence is quoted
+    value: a PubMed title or abstract states the relation between the condition and the disease, in human patients
+      or populations; its sentence is quoted
     basis_type: design
     basis: Every clinical relation must be traceable to a sentence of a primary source. The quote is re-checked
-      against the abstract fetched at each build, and the build stops if it is not found.
+      against the abstract fetched at each build, and the build stops if it is not found. A sign or finding of the
+      disease itself, a mechanism, a demographic attribute (sex, age, race or ethnicity, decided with the user,
+      2026-10-20), an animal or cell experiment, a comparison between groups of patients, or a result for a broader
+      group in which the disease's patients are a minority does not relate two conditions.
     used_in: sheet 4 (evidence rows)
   - key: contrary
     item: Contrary findings
-    value: kept, labeled by direction
-    basis_type: design
-    basis: Reporting only positive findings would overstate a relation; studies that found no association are
-      kept beside the positive ones.
-    used_in: sheet 4
+    value: a study that found no association is kept beside a relation, labeled by its direction, but never makes one;
+      a condition whose clinical evidence all found no association is not a related condition (listed apart)
+    basis_type: user
+    basis: Reporting only positive findings would overstate a relation, so studies that found no association stay
+      beside the positive ones; but a finding of no association is not an association (user, 2026-10-20). The
+      direction is judged like every decisive item, by the two readers apart and the adjudicator where they differ
+      (or given by the curated list); a relation counts only with a direction other than no association.
+    used_in: sheet 4; condition map
   - key: ontology
     item: Ontology neighbors
-    value: parent of CTEPH; its siblings; children of PAH
+    value: parents of {short}; their other children; children of {short}
     basis_type: design
-    basis: The disease ontology places CTEPH under pulmonary hypertension, whose other forms are its neighbors.
-      They are kept as a separate, weaker evidence type, since the ontology states a classification, not a
-      clinical relation.
+    basis: The disease ontology places {short} among related diseases, which are its neighbors. They are kept as a
+      separate, weaker evidence type, since the ontology states a classification, not a clinical relation.
+    used_in: sheet 4
+  - key: ontology_children
+    item: A parent too broad to give neighbors
+    param: MaxOntologyChildren
+    format: more than {v} children
+    basis_type: design
+    basis: A parent class with very many children (such as "hereditary disease") groups diseases by a property, not by
+      relatedness; it and its children are left out, and the ontology log names it.
     used_in: sheet 4
   - key: clpp
-    item: Colocalization with a CTEPH credible set (eCAVIAR CLPP)
+    item: Colocalization with a {short} credible set (eCAVIAR CLPP)
     param: ClppMin
     format: CLPP ≥ {v}
     basis_type: source
@@ -152,7 +241,7 @@ groups:
     refs: [ecaviar, tsepilov]
     used_in: sheets 4, 5, A3; regions figure
   - key: h4
-    item: Colocalization with a CTEPH credible set (coloc H4)
+    item: Colocalization with a {short} credible set (coloc H4)
     param: H4Min
     format: H4 ≥ {v}
     basis_type: source
@@ -162,11 +251,11 @@ groups:
     refs: [tsepilov, coloc]
     used_in: sheets 4, 5, A3
   - key: overlap
-    item: Lead-variant overlap (regions without a CTEPH credible set)
+    item: Lead-variant overlap (regions without a {short} credible set)
     param: ClppMin
     format: lead-variant PIP ≥ {v}
     basis_type: design
-    basis: Without a CTEPH credible set, colocalization cannot be computed. If the CTEPH lead variant were the
+    basis: Without a {short} credible set, colocalization cannot be computed. If the {short} lead variant were the
       causal variant, the CLPP of the pair would equal that variant's posterior inclusion probability (PIP) in the
       other credible set, so the colocalization cut-off is applied to that PIP. It is an upper bound, hence a
       weaker kind of evidence, shown apart.
@@ -174,12 +263,11 @@ groups:
     used_in: sheets 4, 5, A3; regions figure
   - key: loci_grading
     item: Strength of a shared signal
-    value: two or more CTEPH regions (stronger); one region (weak)
+    value: two or more {short} regions (stronger); one region (weak)
     basis_type: data check
-    basis: A region can act on another trait through a pathway unrelated to CTEPH (pleiotropy); the ABO region,
-      associated with many unrelated traits, is the most frequent single shared region. Two or more shared
-      regions point to a shared mechanism; one region alone is weak evidence.
-    check: single_locus_abo
+    basis: A region can act on another trait through a pathway unrelated to {short} (pleiotropy). Two or more
+      shared regions point to a shared mechanism; one region alone is weak evidence.
+    check: single_region
     used_in: sheets 4, 5; condition map
 
 - name: Genetics of the related conditions
@@ -188,9 +276,17 @@ groups:
     item: Depth of genetic retrieval
     value: all GWAS and curated evidence; shared signals only; none
     basis_type: design
-    basis: Procedures (splenectomy, devices) and CTEPD have no Open Targets record, and malignancy is too broad a
-      phenotype. Traits related only by a shared signal, and platelet count (125 GWAS of a general blood trait),
-      keep only their shared signals, so that they do not flood the gene map with unrelated genes.
+    basis: Conditions without an Open Targets record get none. Traits related only by a shared signal keep only
+      their shared signals, and so does a condition with more GWAS studies than the limit, so that general traits
+      do not flood the gene map with unrelated genes.
+    used_in: sheets 4, 7
+  - key: max_gwas
+    item: GWAS studies of a condition fetched in full
+    param: MaxGwasStudies
+    format: at most {v} studies
+    basis_type: design
+    basis: A condition with more GWAS studies (a general blood or anthropometric trait) keeps only its signals
+      shared with the disease.
     used_in: sheets 4, 7
   - key: l2g
     item: GWAS gene of a condition (locus-to-gene score)
@@ -204,12 +300,15 @@ groups:
   - key: curated
     item: Curated gene evidence (source score)
     param: MendelianMin
-    format: Open Targets source score ≥ {v}
+    format: Open Targets source score ≥ {v}; ClinVar alone, a pathogenic record of two stars or more
     basis_type: source
     basis: The score is Open Targets' harmonic sum of a source's evidence scores, scaled to 0–1. At 0.5 it keeps
       genes with at least one strong record (ClinGen or Gene2Phenotype strong or definitive, PanelApp green,
       Orphanet assessed, UniProt high, a ClinVar pathogenic record) or several weaker ones; one moderate, amber or
-      likely-pathogenic record alone does not reach it.
+      likely-pathogenic record alone does not reach it. A ClinVar link counts only with a pathogenic or likely
+      pathogenic record whose review status has two stars or more (multiple submitters without conflicts, an
+      expert panel or a practice guideline); a single submitter, or a record without assertion criteria, is not
+      enough. A gene without an approved symbol is left out.
     refs: [otdocs_evidence, otdocs_assoc]
     used_in: sheets 6, 7, A4; gene map
   - key: eas
@@ -222,25 +321,25 @@ groups:
     used_in: sheets 4, 7, 9, A1
   - key: gene_link
     item: Gene–condition link (G, C, L)
-    value: G GWAS; C curated evidence; L a genetic study of CTEPH
+    value: G GWAS; C curated evidence; L a genetic study of {short}
     basis_type: design
     basis: The kinds of genetic evidence are kept apart so that a reader can see which kind links a gene to a
-      condition. G follows the locus-to-gene threshold for the related conditions and the published regions for
-      CTEPH (G* when significant only after leveraging PE); C follows the curated threshold; L requires an
-      association, enrichment or variant reported by a genetic study of CTEPH.
+      condition. G follows the locus-to-gene threshold for the related conditions and the GWAS regions for {short}
+      (G* when significant only in a secondary analysis); C follows the curated threshold; L requires an
+      association, enrichment or variant reported by a genetic study of {short}.
     used_in: sheet 6; gene map
 
-- name: Genetic studies of CTEPH in the literature
+- name: Genetic studies of {short} in the literature
   items:
   - key: query
     item: PubMed search
     param: PubmedQuery
-    basis_type: data check
-    basis: CTEPH in title or abstract and a genetics term in title or abstract, up to the fetch date. Checked at
-      every snapshot against a benchmark chosen independently of the search, the original genetic studies cited
-      by the curated seed of related conditions.
-    benchmark: [15640334, 18057060, 18931448, 19165231, 19420351, 10706510, 20182352, 23894515, 32397294, 36338413,
-                38116660, 38470220, 39150410, 39604025, 40726512]
+    basis_type: design
+    basis: '{short} in title or abstract and a genetics term in title or abstract, in PubMed on the fetch date (entry
+      date, so that the same date finds the same records later). Written from the disease ID: the name (always) and
+      the exact synonyms of Open Targets, without terms that also name a gene or another disease; an acronym only
+      beside a word of the name, since an acronym alone names other things too; a short name made up from initials
+      never.'
     used_in: sheet A6
   - key: prescreen_types
     item: Pre-screen by record type
@@ -251,19 +350,17 @@ groups:
   - key: prescreen_terms
     item: Pre-screen by genetic-study terms
     param: Prescreen
-    basis_type: data check
+    basis_type: design
     basis: A record whose title and abstract name no genetic-study term (polymorphism, genotype, allele, mutation,
       sequencing, exome, genome-wide, HLA, SNP, rsID, germline, somatic, clonal hematopoiesis, Mendelian
-      randomization, haplotype, linkage, ...) is excluded before any model reads it. Checked at every snapshot on
-      the same benchmark as the search.
-    benchmark: [15640334, 18057060, 18931448, 19165231, 19420351, 10706510, 20182352, 23894515, 32397294, 36338413,
-                38116660, 38470220, 39150410, 39604025, 40726512]
+      randomization, haplotype, linkage, ...; the full list is in the shared search rules) is excluded before any
+      model reads it.
     used_in: sheet A6
   - key: inclusion
     item: Inclusion of a study
-    value: an original study or case report with genetic data from CTEPH patients
+    value: an original study or case report with genetic data from {short} patients
     basis_type: design
-    basis: The question is what genetic studies of CTEPH found; reviews, expression-only studies and animal-only
+    basis: The question is what genetic studies of {short} found; reviews, expression-only studies and animal-only
       studies hold no such data.
     used_in: sheets 2, 3, A5
   - key: batch
@@ -274,12 +371,44 @@ groups:
     basis: Fewer calls while each abstract stays short enough to be read in full; the value was not tuned.
     used_in: screening
   - key: model
-    item: Language model
-    param: LlmModel
+    item: Language models
+    param: LlmReaders
     basis_type: design
-    basis: The default model of the command-line tool, recorded in the run manifest. Answers are cached per model
-      and prompt, so a change of model re-reads every record.
-    used_in: screening, extraction, summaries
+    basis: The two readers and the adjudicator are three different models, each named rather than left to a
+      backend's default, which changes with the backend's version; the run manifest records the model that answered.
+      Answers are cached per model and prompt, so a change of model re-reads every record.
+    used_in: screening, extraction, relations, summaries
+  - key: readers
+    item: Two independent readers
+    value: every record read by two models that never see each other's answer; a disagreement is decided by an
+      adjudicating call
+    basis_type: user
+    basis: Decided with the user (2026-10-19). Only items both readers report, or the adjudicator confirms against
+      the text, enter the graph; the adjudicated items are marked and listed with both readings. The adjudicator is
+      a third model, and reads the two readings in an order that alternates from record to record (fixed by the
+      record), so that it favors neither reader by position.
+    check: readers
+    used_in: sheets 2, 3, 4, 10
+  - key: comparison
+    item: What the two readers are compared on
+    value: inclusion; sample sizes; Japanese and East Asian flags; each finding (gene and result); each methods field
+      (overlapping quotes); each clinical relation (condition, direction and category)
+    basis_type: design
+    basis: The items that decide what the graph counts. A finding is identified by its gene (official symbol, else
+      the gene as written) and result, "enriched" counting as "associated"; a methods field agrees when both quotes
+      overlap (one contains the other, or they share at least 60% of the words of the shorter); a relation is
+      identified by the condition's usual name, its direction (any positive direction counting as one) and its
+      category. The
+      descriptive fields (reason, design wording, country, control type) are taken from the first reader.
+    used_in: sheets 2, 3, 4, 10
+  - key: result_check
+    item: Check of a finding's result against its sentence
+    value: negation or non-significance words for "not associated"; significance words or P < 0.05 for
+      "associated"
+    basis_type: design
+    basis: A finding whose result disagrees with the wording of its own source sentence is flagged for review; the
+      word patterns are listed in the curation rules.
+    used_in: sheet 10
   - key: methods_fields
     item: Methods fields extracted
     value: 15 fields (cohort, diagnosis, controls, DNA source, platform, sequencing, HLA typing, variant calling and
@@ -308,8 +437,8 @@ groups:
     item: Isolation of the language model
     value: no tools, no project memory, no saved session
     basis_type: design
-    basis: The extraction must rest on the record alone; nothing of the project's own data or notes may reach it.
-      A probe call tests this before each run.
+    basis: The extraction must rest on the record alone; nothing of the user's own data or notes may reach it. The
+      command-line backend runs with every customization off; the API backends send the prompt alone.
     used_in: screening, extraction, summaries
 
 - name: Mechanisms and summaries
@@ -342,14 +471,17 @@ groups:
     param: SentencesPerPaper
     format: '{v} sentences'
     basis_type: design
-    basis: The sentences that name both the target and CTEPH, abstract first; enough to judge a link without
+    basis: The sentences that name both the target and {short}, abstract first; enough to judge a link without
       reproducing the paper.
     used_in: sheet 8
   - key: summary_checks
     item: Checks of a generated summary
-    value: every cited PMID among the inputs; every gene named in the source text
+    value: every cited PMID among the inputs; every gene symbol of the material it names in the source text; every
+      claim checked by the second reader
     basis_type: design
-    basis: A summary may only state what its source records contain; one that fails is withheld.
+    basis: A summary may only state what its source records contain. The second reader lists the claims it finds
+      unsupported, and the adjudicator rules on each, true or false; a summary that fails, that was not checked, or
+      whose disputed claims are not each ruled on is withheld, with the reason.
     used_in: sheets 2, 3, 8
   - key: smoke
     item: Smoke-run limits
@@ -382,15 +514,26 @@ groups:
     used_in: sheet 10, A5
   - key: textmining_review
     item: Text-mined links mapped to the wrong gene
-    value: each matched word read against its sentences
+    value: a word that names the disease, a parent, a child or an entry whose evidence it takes (except for a gene
+      with curated evidence for the disease); each word listed for the disease
     basis_type: design
     basis: Europe PMC text mining maps words to genes by dictionary, so a word that names something else in the
-      CTEPH literature makes a false link (sGC, soluble guanylate cyclase, mapped to SGCB; PTPA and BPA, pulmonary
-      angioplasty; aPL, antiphospholipid antibodies; TF, tissue factor, mapped to transferrin). Each matched word
-      was read against its sentences (2026-10-17). A link whose every word is wrong is dropped, a wrong word is
-      removed from a link that keeps another, and a correction that matches no link stops the build.
+      literature makes a false link. A word that is the name, abbreviation or synonym of {short}, of a parent or a
+      child of it, or of an entry whose evidence it takes is such a word, unless the gene has curated evidence for
+      {short}, for which the word is the old name of the gene's locus (PPH1, the BMPR2 locus of familial primary
+      pulmonary hypertension). The other words are read against their sentences and listed for the disease. A
+      link whose every word is wrong is dropped, a wrong word is removed from a link that keeps another, and a
+      listed correction that matches no link stops the build.
     refs: [epmc]
     used_in: sheets 8, 10
+  - key: curated_symbols
+    item: Curated genes named like a disease
+    value: a gene whose symbol is the name or exact synonym of {short}, of a parent or a child of it, or of an entry
+      whose evidence it takes is left out of the curated evidence of {short}
+    basis_type: design
+    basis: Such a gene is linked to the disease by its abbreviation, not by evidence (for example PAH, phenylalanine
+      hydroxylase, linked to pulmonary arterial hypertension); the curation log names it.
+    used_in: sheets 1, 2, 10
   - key: variants
     item: Variant names
     value: one name per variant, with its dbSNP rsID where established
@@ -402,12 +545,12 @@ groups:
     used_in: sheets 2, 10
   - key: about
     item: What a finding is about
-    value: CTEPH itself (default); a phenotype or outcome within CTEPH; another trait; a functional experiment; a
-      background statement
+    value: '{short} itself (default); a phenotype or outcome within {short}; another trait; a functional
+      experiment; a background statement'
     basis_type: design
     basis: An association with survival, clinical worsening, exercise capacity, a biomarker or the clinical type
-      among patients modifies the course of CTEPH; it is not evidence that the gene raises the risk of CTEPH. Each
-      such finding was read against its source sentence (2026-10-17) and is kept, marked, without raising the
+      among patients modifies the course of {short}; it is not evidence that the gene raises the risk of {short}.
+      Each such finding is read against its source sentence and listed, kept and marked, without raising the
       gene's evidence level; a later finding with words of this kind is logged for review.
     used_in: sheets 1, 2, 10
   - key: place
@@ -430,16 +573,17 @@ groups:
     item: Rebuild from the saved sources
     param: Rebuild
     basis_type: design
-    basis: A rebuild re-derives a snapshot from its saved fetch and extraction; no source is queried again except
-      PubMed for the record of each publication, which the curation needs and keeps with the snapshot.
+    basis: A rebuild re-derives a snapshot from its saved fetch and literature records; no source is queried again
+      except PubMed for the record of each publication when it is not yet saved, and Open Targets for gene symbols
+      in the snapshot's own release. Model answers come from the cache, and only answers not yet cached are asked.
     used_in: every step
   - key: offline
     item: Language model in this build
     param: LlmOffline
     format: 'cache only: {v}'
     basis_type: design
-    basis: A build that changes only the curation calls no model. A generated summary is reused when its inputs
-      are unchanged; otherwise it is reported as not generated.
+    basis: A build that changes only the curation calls no model. A generated answer is reused when its inputs are
+      unchanged; otherwise it is reported as not generated.
     used_in: sheets 2, 3, 8
 
 - name: East Asian annotation
@@ -451,6 +595,22 @@ groups:
     basis: The countries of East Asia. A study is placed by the country of its first author's institution; it
       counts as Japanese when it was done in Japan or its abstract states a Japanese population.
     used_in: sheets 2, 9
+  - key: eas_relation
+    item: East Asian evidence of a relation
+    value: clinical evidence from a study done in East Asia (the country of the first author's institution) or of an
+      East Asian population (named as a whole word in the abstract and in the reading, with no country outside East
+      Asia named); a shared GWAS signal whose two GWAS, the disease's and the
+      condition's, have mostly East Asian samples; never the ontology, a lead-variant overlap, or the condition's other
+      studies
+    basis_type: user
+    basis: Decided with the user (2026-10-20). The flag says where the evidence that relates the condition to the
+      disease comes from; a condition with East Asian GWAS of its own, related to the disease by evidence from other
+      populations, is not East Asian evidence of the relation (its East Asian GWAS are listed with its genetics). A
+      lead-variant overlap rests on a published region without a credible set of the disease, whose sample Open
+      Targets does not record. The place of a study counts as for the genetic studies of the disease (a Japanese
+      cohort whose abstract names no country is East Asian evidence). One flag, set once, serves the map, the viewer,
+      the workbook and the knowledge base.
+    used_in: sheets 4, 9; condition map
 
 references:
   nlm_pubtypes: "National Library of Medicine. Publication Characteristics (Publication Types) with Scope Notes.
@@ -464,9 +624,6 @@ references:
     (2024). Europe PMC in 2023. Nucleic Acids Research, 52(D1), D1668–D1676. PMID 37994696"
   reactome: "Milacic, M., Beavers, D., Conley, P., Gong, C., Gillespie, M., Griss, J., ... & D'Eustachio, P. (2024).
     The Reactome Pathway Knowledgebase 2024. Nucleic Acids Research, 52(D1), D672–D678. PMID 37941124"
-  liley: "Liley, J., Newnham, M., Bleda, M., Bunclark, K., Auger, W., Barbera, J. A., ... & Toshner, M. (2024).
-    Shared and distinct genomics of chronic thromboembolic pulmonary hypertension and pulmonary embolism. American
-    Journal of Respiratory and Critical Care Medicine, 209(12), 1477–1485. PMID 38470220"
   ecaviar: "Hormozdiari, F., van de Bunt, M., Segrè, A. V., Li, X., Joo, J. W. J., Bilow, M., ... & Eskin, E. (2016).
     Colocalization of GWAS and eQTL signals detects target genes. The American Journal of Human Genetics, 99(6),
     1245–1260. PMID 27866706"
@@ -488,32 +645,11 @@ references:
     statement. PLoS Medicine, 6(2), e1000022. PMID 19192942"
   kraft: "Kraft, P., Zeggini, E., & Ioannidis, J. P. (2009). Replication in genome-wide association studies.
     Statistical Science, 24(4), 561–573. PMID 20454541"
-  humbert: "Humbert, M., Kovacs, G., Hoeper, M. M., Badagliacca, R., Berger, R. M. F., Brida, M., ... & Rosenkranz,
-    S. (2022). 2022 ESC/ERS Guidelines for the diagnosis and treatment of pulmonary hypertension. European Heart
-    Journal, 43(38), 3618–3731. PMID 36017548"
-  delcroix: "Delcroix, M., Torbicki, A., Gopalan, D., Sitbon, O., Klok, F. A., Lang, I., ... & Simonneau, G. (2021).
-    ERS statement on chronic thromboembolic pulmonary hypertension. European Respiratory Journal, 57(6), 2002828.
-    PMID 33334946"
-  welch: "Welch, C. L., Aldred, M. A., Balachandar, S., Dooijes, D., Eichstaedt, C. A., Gräf, S., ... & Chung, W. K.
-    (2023). Defining the clinical validity of genes reported to cause pulmonary arterial hypertension. Genetics in
-    Medicine, 25(11), 100925. PMID 37422716"
-  jaiswal: "Jaiswal, S., Fontanillas, P., Flannick, J., Manning, A., Grauman, P. V., Mar, B. G., ... & Ebert, B. L.
-    (2014). Age-related clonal hematopoiesis associated with adverse outcomes. New England Journal of Medicine,
-    371(26), 2488–2498. PMID 25426837"
-  genovese: "Genovese, G., Kähler, A. K., Handsaker, R. E., Lindberg, J., Rose, S. A., Bakhoum, S. F., ... &
-    McCarroll, S. A. (2014). Clonal hematopoiesis and blood-cancer risk inferred from blood DNA sequence. New
-    England Journal of Medicine, 371(26), 2477–2487. PMID 25426838"
-  germain: "Germain, M., Chasman, D. I., de Haan, H., Tang, W., Lindström, S., Weng, L. C., ... & Morange, P. E.
-    (2015). Meta-analysis of 65,734 individuals identifies TSPAN15 and SLC44A2 as two susceptibility loci for
-    venous thromboembolism. The American Journal of Human Genetics, 96(4), 532–542. PMID 25772935"
-  sabater: "Sabater-Lleal, M., Huffman, J. E., de Vries, P. S., Marten, J., Mastrangelo, M. A., Song, C., ... &
-    Smith, N. L. (2019). Genome-wide association transethnic meta-analyses identifies novel associations regulating
-    coagulation factor VIII and von Willebrand factor plasma levels. Circulation, 139(5), 620–635. PMID 30586737"
-  cpic: "Johnson, J. A., Caudle, K. E., Gong, L., Whirl-Carrillo, M., Stein, C. M., Scott, S. A., ... & Wadelius, M.
-    (2017). Clinical Pharmacogenetics Implementation Consortium (CPIC) guideline for pharmacogenetics-guided
-    warfarin dosing: 2017 update. Clinical Pharmacology & Therapeutics, 102(3), 397–404. PMID 28198005"
-  ash2023: "Middeldorp, S., Nieuwlaat, R., Baumann Kreuziger, L., Coppens, M., Houghton, D., James, A. H., ... &
-    Iorio, A. (2023). American Society of Hematology 2023 guidelines for management of venous thromboembolism:
-    Thrombophilia testing. Blood Advances, 7(22), 7101–7138. PMID 37195076"
+  neale2017: "Neale lab (2017). Details and considerations of the UK Biobank GWAS (case/control traits - keep
+    variants with at least 25 expected copies of the minor allele in the smaller group).
+    http://www.nealelab.is/blog/2017/9/11/details-and-considerations-of-the-uk-biobank-gwas (accessed 2026-10-20)"
+  pulit2017: "Pulit, S. L., de With, S. A. J., & de Bakker, P. I. W. (2017). Resetting the bar - statistical
+    significance in whole-genome sequencing-based association studies of global populations. Genetic Epidemiology,
+    41(2), 145–151. https://doi.org/10.1002/gepi.22032"
   uniprot: "UniProt Knowledgebase, protein function annotations of each gene. https://www.uniprot.org
     (accessed 2026-10-17)"

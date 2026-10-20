@@ -1,33 +1,44 @@
 #!/usr/bin/env python3
 # ---------------------------------------------------------------------------
 # Purpose : The curation step between what was fetched and extracted and what
-#           the knowledge graph holds. Deterministic: every rule is in
-#           config/curation.yaml, and every rule applied is logged row by row.
+#           the knowledge graph holds. Deterministic: every rule is in the
+#           curation rules of the profile (config/curation.yaml merged with the
+#           disease's own entries), and every rule applied is logged row by row.
 #             publications   the status of every publication the graph uses,
 #                            from its PubMed record: excluded (retracted, or
 #                            conference material), flagged (preprint, erratum,
 #                            expression of concern) or kept; the country of
 #                            the first author's institution
-#             studies        the genetic studies of CTEPH without the excluded
+#             studies        the genetic studies of the disease without the excluded
 #                            ones; place (country of the first author's
 #                            institution, else the country the abstract states),
 #                            Japanese / East Asian flags from the place, one
 #                            design class each
 #             findings       without the excluded studies; one name and an rsID
-#                            per variant; what each finding is about (CTEPH
-#                            itself, a phenotype or outcome within CTEPH,
+#                            per variant; what each finding is about (the
+#                            disease itself, a phenotype or outcome within it,
 #                            another trait, a functional experiment, a
 #                            background statement); gene sets marked
 #             screening      every PubMed record; an excluded publication is
 #                            marked as left out by its publication status
-#             literature     the text-mined CTEPH literature (Europe PMC via Open
-#                            Targets) without excluded publications and without
-#                            words mapped to the wrong gene (their sentences
-#                            go with them)
+#             literature     the text-mined literature of the disease (Europe PMC
+#                            via Open Targets) without excluded publications and
+#                            without words mapped to the wrong gene (their
+#                            sentences go with them): the words the disease lists,
+#                            and any word that names the disease or an ontology
+#                            neighbor (its name, an exact synonym)
+#             relations      the clinical relations without excluded publications:
+#                            a curated list may not cite one (the build stops); an
+#                            extracted relation that does is left out
+#             curated genes  the curated gene evidence of the disease itself
+#                            without genes whose symbol is a word naming the disease
+#                            or an ontology neighbor (e.g. PAH, phenylalanine
+#                            hydroxylase, for pulmonary arterial hypertension)
 # Inputs  : publications.json.gz (publications.py), 02.literature, 00.raw,
-#           relations.tsv, config/curation.yaml
+#           relations.tsv, the profile
 # Outputs : publications.tsv, studies.tsv, findings.tsv, methods.tsv,
 #           screening.tsv, literature.tsv, textmining_review.tsv,
+#           relations.tsv, model_review.tsv (the disputed items of the readers),
 #           curation_log.tsv (step, item, rule, before, after, basis),
 #           curation.json (counts)
 # ---------------------------------------------------------------------------
@@ -38,10 +49,10 @@ import sys
 from pathlib import Path
 
 import pandas as pd
-import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ot_common import ABOUT_CTEPH, load_json, log, read_tsv, sentences, us_english, write_tsv  # noqa: E402
+from ot_common import (load_json, load_profile, log, mining_links, read_tsv, sentences, us_english,  # noqa: E402
+                       write_tsv)
 
 LOG_COLS = ['step', 'item', 'rule', 'before', 'after', 'basis']
 
@@ -86,6 +97,19 @@ def country_of(aff, C):
     return ''
 
 
+def disease_words(rec):
+    """{word: what it names}: the name and exact synonyms of the disease, its parents and its children, and of
+    the other entries whose evidence it takes (evidence_also) (Open Targets), as words a text-mining dictionary can
+    mistake for a gene symbol."""
+    out = {}
+    for d in [rec] + (rec.get('parents') or []) + (rec.get('children') or []) + (rec.get('evidence_also') or []):
+        terms = [d['name']] + [t for s in d.get('synonyms') or [] if s.get('relation') == 'hasExactSynonym'
+                               for t in s['terms']]
+        for t in terms:
+            out.setdefault(t, f'the disease "{d["name"]}"')
+    return out
+
+
 # ── studies and findings ─────────────────────────────────────────────────────
 def design_class(s, classes):
     designs = set(str(s.design).split('; '))
@@ -122,13 +146,14 @@ def main():
     ap.add_argument('--literature', required=True, help='02.literature (extract_genetics.py outputs)')
     ap.add_argument('--raw', required=True, help='00.raw (text-mined evidence)')
     ap.add_argument('--relations', required=True, help='01.conditions/relations.tsv')
-    ap.add_argument('--curation', required=True, help='config/curation.yaml')
+    ap.add_argument('--profile', required=True, help='profile.json of the disease (its curation rules)')
     ap.add_argument('--sentences', type=int, default=3, help='sentences kept per text-mined publication')
     ap.add_argument('--out-dir', default='03.curated')
     a = ap.parse_args()
     out = Path(a.out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    cur = yaml.safe_load(Path(a.curation).read_text())
+    PR = load_profile(a.profile)
+    cur, ABOUT, short = PR.curation, PR.about, PR.short
     P, X = load_json(a.publications), Path(a.literature)
     C = cur['countries']
     logs = []
@@ -165,11 +190,20 @@ def main():
              f'left out: {r.reason}', basis[r.rule])
     rel = read_tsv(a.relations)
     bad = sorted(set(rel.pmid) & set(excluded))
-    assert not bad, f'the curated seed cites excluded publications: {bad}; replace them in related_conditions.yaml'
+    extracted = PR.relations.get('mode') == 'extracted'
+    assert extracted or not bad, f'the curated seed cites excluded publications: {bad}; replace them in ' \
+                                 'related_conditions.yaml'
+    for r in rel[rel.pmid.isin(excluded)].itertuples():
+        note('relations', f'PMID {r.pmid}', 'excluded publication', f'{r.evidence_type}: {r.detail}',
+             f'left out: {excluded[r.pmid]}', basis[pubs.set_index('pmid').rule[r.pmid]])
+    rel = rel[~rel.pmid.isin(excluded)]
 
-    # ── genetic studies of CTEPH ─────────────────────────────────────────────
-    st, fi = read_tsv(X / 'studies.tsv'), read_tsv(X / 'findings.tsv')
-    me, sc = read_tsv(X / 'methods.tsv'), read_tsv(X / 'screening.tsv')
+    # ── genetic studies of the disease ──────────────────────────────────────
+    st = read_tsv(X / 'studies.tsv', ['pmid', 'year', 'first_author', 'title', 'study_type', 'design', 'country',
+                                      'japanese', 'east_asian'])
+    fi = read_tsv(X / 'findings.tsv', ['pmid', 'gene', 'symbol', 'variant', 'result', 'quote', 'ensembl_id'])
+    me = read_tsv(X / 'methods.tsv', ['pmid', 'field', 'value', 'quote', 'source'])
+    sc = read_tsv(X / 'screening.tsv', ['pmid', 'year', 'title', 'include', 'study_type', 'stage', 'reason'])
     drop = st.pmid.isin(excluded.keys())
     for r in st[drop].itertuples():
         n_f = int((fi.pmid == r.pmid).sum())
@@ -202,7 +236,9 @@ def main():
                      'affiliation': pi.affiliation.get(s.pmid, '') if s.pmid in pi.index else '',
                      'japanese': jp, 'east_asian': ea, 'design_class': c['key'], 'design_class_label': c['label'],
                      'publication_flag': flagged.get(s.pmid, '')})
-    st = pd.concat([st.reset_index(drop=True), pd.DataFrame(rows)], axis=1)
+    st = pd.concat([st.reset_index(drop=True), pd.DataFrame(rows, columns=[
+        'place', 'place_source', 'institution_country', 'affiliation', 'japanese', 'east_asian', 'design_class',
+        'design_class_label', 'publication_flag'])], axis=1)
     st = st.loc[:, ~st.columns.duplicated(keep='last')]
     for c in st.design_class_label.unique():
         note('studies', c, 'design class', '', f'{int((st.design_class_label == c).sum())} studies',
@@ -210,18 +246,18 @@ def main():
 
     # ── findings ─────────────────────────────────────────────────────────────
     F = cur['findings']
-    kinds = [(k, F[k]) for k in ('within_cteph', 'other_trait', 'functional', 'background')]
+    kinds = [(k, F[k]) for k in ('within_disease', 'other_trait', 'functional', 'background')]
     used = set()
     about, about_note, sets, members = [], [], [], []
     for f in fi.itertuples():
-        lab, nt = ABOUT_CTEPH, ''
+        lab, nt = ABOUT, ''
         for k, spec in kinds:
             for j, it in enumerate(spec['items']):
                 if matches(f, it):
                     lab, nt = spec['label'], it.get('note', '')
                     used.add((k, j))
                     note('findings', f'PMID {f.pmid} {f.symbol or f.gene or "(no gene)"}', 'about',
-                         f'{f.result}: about CTEPH', f'{f.result}: about {lab} ({nt})', spec['basis'])
+                         f'{f.result}: about {short}', f'{f.result}: about {lab} ({nt})', spec['basis'])
         gs = ''
         for j, it in enumerate(F['gene_sets']):
             if str(f.pmid) == str(it['pmid']) and it['match'].lower() in (f.quote + ' ' + f.gene).lower():
@@ -244,14 +280,15 @@ def main():
             note('findings', f'PMID {f.pmid} {f.symbol}', 'variant name', f.variant or '(none written)',
                  n + (f' ({r})' if r else ''), f'Matched in the {how}; config/curation.yaml (variants).')
     words = F['review_words']
-    open_ = fi[(fi.association_with == ABOUT_CTEPH) & fi.result.isin(['associated', 'enriched', 'other'])]
+    open_ = fi[(fi.association_with == ABOUT) & fi.result.isin(['associated', 'enriched', 'other'])]
     for f in open_.itertuples():
         hit = [w for w in words if w.lower() in f.quote.lower()]
         if hit:
-            note('findings', f'PMID {f.pmid} {f.symbol or f.gene}', 'to review', f'about CTEPH ({f.result})',
-                 'words of a within-CTEPH finding: ' + ', '.join(hit),
-                 'Read the source sentence; list the finding in config/curation.yaml if it is not about CTEPH.')
-    fi['counts_for_ladder'] = (fi.association_with == ABOUT_CTEPH) & fi.symbol.ne('')
+            note('findings', f'PMID {f.pmid} {f.symbol or f.gene}', 'to review', f'about {short} ({f.result})',
+                 f'words of a finding within {short}: ' + ', '.join(hit),
+                 f'Read the source sentence; list the finding in the curation file of {short} if it is not about '
+                 f'{short} itself.')
+    fi['counts_for_ladder'] = (fi.association_with == ABOUT) & fi.symbol.ne('')
 
     # ── screening ────────────────────────────────────────────────────────────
     sc['publication_status'] = sc.pmid.map(lambda p: excluded.get(p) or flagged.get(p) or '')
@@ -263,14 +300,26 @@ def main():
 
     # ── text-mined literature ────────────────────────────────────────────────
     wrong = {}
-    for it in cur['text_mining']:
+    for it in cur['text_mining'] + (cur.get('shared_text_mining') or []):
         for w in it['words']:
             wrong.setdefault(it['gene'], {})[w] = it['meaning']
+    listed = {(it['gene'], w) for it in cur['text_mining'] for w in it['words']}   # stale-checked
+    dwords = disease_words(load_json(Path(a.raw) / 'disease.json'))
     ev = load_json(Path(a.raw) / 'evidence.json.gz')
+    men = load_json(Path(a.raw) / 'mendelian.json.gz') if (Path(a.raw) / 'mendelian.json.gz').exists() else \
+        {'mendelian_targets': {}, 'mendelian_evidence': []}
+    # a gene with curated evidence for the disease keeps a word that names the disease: the word is then the old
+    # name of the gene's locus (PPH1, the BMPR2 locus of pulmonary hypertension), not a mis-mapping; a gene whose
+    # symbol is itself such a word is not one of them (below)
+    own_curated = {t_['symbol'] for ts in men['mendelian_targets'].values() for t_ in ts
+                   if t_['symbol'] not in dwords}
     lit, review = [], []
-    for e in (x for x in ev if x['datasourceId'] == 'europepmc'):
+    for e in mining_links(ev):                                   # one link per gene and publication
         sym = e['target']['approvedSymbol']
         _t, words_all, _n, _b = sentences(e, a.sentences)
+        for w in words_all:
+            if w in dwords and w not in wrong.get(sym, {}) and sym not in own_curated:
+                wrong.setdefault(sym, {})[w] = dwords[w]
         title, words, n, best = sentences(e, a.sentences, set(wrong.get(sym, {})))
         gone = [w for w in words_all if w not in words]
         for pmid in e['literature'] or ['']:
@@ -290,18 +339,42 @@ def main():
                             'year': e.get('publicationYear'), 'title': title, 'matched_as': ' | '.join(words),
                             'n_sentences': n, 'sentences': ' || '.join(best), 'evidence_score': e['score'],
                             'publication_flag': flagged.get(pmid, '')})
-    rv = pd.DataFrame(review)
+    # explicit columns: a disease can have no text-mined publication at all (PVOD/PCH in Open Targets 26.09)
+    rv = pd.DataFrame(review, columns=['ensembl_id', 'symbol', 'pmid', 'matched_as', 'kept_words', 'decision',
+                                       'reason', 'publication_flag'])
     used_words = {(r.symbol, w) for r in rv.itertuples() for w in r.matched_as.split(' | ')}
-    stale = [(g, w) for g, ws in wrong.items() for w in ws if (g, w) not in used_words]
+    stale = sorted((g, w) for g, w in listed if (g, w) not in used_words)
     assert not stale, f'text-mining corrections that match no link (stale config): {stale}'
     for (sym, why), g in rv[rv.decision == 'dropped'].groupby(['symbol', 'reason']):
         note('text mining', sym, 'link dropped', f'{len(g)} publication{"s" if len(g) > 1 else ""}', why,
-             'config/curation.yaml (publications, text_mining)')
+             'The curation rules (publications; text mining: the words listed for the disease, and words that name '
+             'the disease or an ontology neighbor).')
     for (sym, why), g in rv[(rv.decision == 'kept') & rv.reason.ne('')].groupby(['symbol', 'reason']):
         note('text mining', sym, 'words removed', f'{len(g)} publication{"s" if len(g) > 1 else ""}', why,
-             'config/curation.yaml (text_mining)')
-    lit = pd.DataFrame(lit).sort_values(['symbol', 'year', 'pmid'], ascending=[True, False, True])
+             'The curation rules (text mining).')
+    lit = pd.DataFrame(lit, columns=['ensembl_id', 'symbol', 'pmid', 'year', 'title', 'matched_as', 'n_sentences',
+                                     'sentences', 'evidence_score', 'publication_flag'])
+    lit = lit.sort_values(['symbol', 'year', 'pmid'], ascending=[True, False, True])
     assert not lit.duplicated(['ensembl_id', 'pmid']).any()
+
+    # ── curated gene evidence of the disease itself ─────────────────────────
+    core_dropped = sorted({t_['symbol'] for ts in men['mendelian_targets'].values() for t_ in ts
+                           if t_['symbol'] in dwords})
+    for s in core_dropped:
+        note('curated genes', s, 'gene symbol names a disease', f'curated evidence for {short}',
+             f'left out: "{s}" is {dwords[s]}',
+             'A gene whose symbol is the abbreviation of the disease or of an ontology neighbor is mapped to it by '
+             'the abbreviation, not by evidence.')
+
+    # ── the readers' disputed items: the genetic studies, and the clinical relations when read from PubMed ─────
+    mr = read_tsv(X / 'review.tsv') if (X / 'review.tsv').exists() else pd.DataFrame()
+    C = Path(a.relations).parent
+    if (C / 'relations_review.tsv').exists():
+        rr = read_tsv(C / 'relations_review.tsv').assign(**{'pass': 'relations'})
+        mr = pd.concat([mr, rr], ignore_index=True).fillna('') if len(mr) else rr
+    reading = json.loads((C / 'relations_reading.json').read_text()) if (C / 'relations_reading.json').exists() else None
+    # an excluded publication is counted, never listed: its disputed items leave the review table
+    mr = mr[~mr.pmid.isin(excluded)] if len(mr) else mr
 
     # ── write ────────────────────────────────────────────────────────────────
     write_tsv(pubs, out / 'publications.tsv')
@@ -311,12 +384,15 @@ def main():
     write_tsv(sc, out / 'screening.tsv')
     write_tsv(lit, out / 'literature.tsv')
     write_tsv(rv, out / 'textmining_review.tsv')
+    write_tsv(rel, out / 'relations.tsv')
+    write_tsv(mr, out / 'model_review.tsv', columns=['pmid', 'pass', 'item', 'final', 'decision'])
     L = pd.DataFrame(logs, columns=LOG_COLS)
     write_tsv(L, out / 'curation_log.tsv')
     stats = {'checked_at': P['checked_at'], 'publications': len(pubs),
              'by_status': pubs.status.value_counts().to_dict(),
-             'excluded': [{'pmid': r.pmid, 'reason': r.reason, 'roles': r.roles, 'first_author': r.first_author,
-                           'year': r.year, 'title': r.title} for r in pubs[pubs.status == 'excluded'].itertuples()],
+             # counted only: the excluded publications are listed in publications.tsv (status) and the curation
+             # log of this folder, the record of the curation, and in no product
+             'excluded': int((pubs.status == 'excluded').sum()),
              'studies': len(st), 'studies_excluded': int(drop.sum()), 'findings': len(fi),
              'findings_by_subject': fi.association_with.value_counts().to_dict(),
              'variants_named': int(sum(1 for _n, _r, h in names if h)),
@@ -326,7 +402,9 @@ def main():
              'textmining_links': len(rv), 'textmining_kept': int((rv.decision == 'kept').sum()),
              'textmining_dropped': int((rv.decision == 'dropped').sum()),
              'textmining_words_removed': int(((rv.decision == 'kept') & rv.reason.ne('')).sum()),
-             'to_review': int((L.rule == 'to review').sum()), 'log_rows': len(L)}
+             'to_review': int((L.rule == 'to review').sum()), 'log_rows': len(L),
+             'core_curated_dropped': core_dropped, 'relations_excluded': int(len(bad)),
+             'model_review': len(mr), 'relations_reading': reading}
     (out / 'curation.json').write_text(json.dumps(stats, indent=1, ensure_ascii=False))
     log(f'publications {len(pubs)} ({stats["by_status"]}); studies {len(st)} (-{stats["studies_excluded"]}); '
         f'findings {len(fi)} {stats["findings_by_subject"]}; text-mined links kept {stats["textmining_kept"]}, '

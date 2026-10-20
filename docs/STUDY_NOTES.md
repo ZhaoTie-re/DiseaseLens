@@ -2,7 +2,7 @@
 
 ## Design decisions (2026-10-16, with the user)
 
-**History.** The first build, `cteph_opentargets` (a component of the CTEPH sequencing project), took everything Open Targets holds on CTEPH: targets, drugs, mouse models, publications. The user redirected it. The graph is to center on:
+**History.** The first build took everything Open Targets holds on CTEPH: targets, drugs, mouse models, publications. The user redirected it. The graph is to center on:
 - CTEPH and the conditions related to it, every relation with its evidence;
 - the genetic studies of both, with their methods;
 - other important content.
@@ -33,7 +33,7 @@ The first snapshot of that build was deleted on 2026-10-16 at the user's request
 
 **Language model.** Summaries were requested, so the screening, extraction and summaries use an isolated, cached model. Everything else is deterministic.
 
-**External only.** Nothing of the CTEPH sequencing project's own results is read or compared.
+**External only.** Nothing of the user's own studies is read or compared.
 
 ## What the seed research showed (PubMed, 2026-10-16)
 - **Control choice.** Most classic risk factors were found against non-thromboembolic PH controls (Bonderman 2005, 2009; Jaïs 2005; Lang 2013). Against PE survivors (Dodson 2022), malignancy, thyroid replacement, intravascular devices, IBD and osteomyelitis were not enriched; only splenectomy and non-O blood group trended. The seed keeps these contrary results.
@@ -56,13 +56,13 @@ The first snapshot of that build was deleted on 2026-10-16 at the user's request
 - **Summary grounding.** A gene check against the theme's target list was too strict: sentences name other genes. The check is now that a gene named must occur in the source text.
 
 ## History
-- 2026-10-16: redesigned from `cteph_opentargets`; seed researched and verified; component built. Then:
+- 2026-10-16: redesigned from the first build; seed researched and verified; component built. Then:
   - At the user's choice, a deterministic pre-screen was added: 471 → 98 records, all 16 known genetic studies kept. Open Targets has no literature summaries, and its text mining misses and mis-maps the genetic studies.
   - The full-text fetch failed on PMC1729855, an HTTP 500 from Europe PMC. Such failures now count as "no full text".
   - At the user's request, the methods of studies without a full text now come from their abstract.
   - The user found the 16-sheet workbook "still cluttered, without logic, not intuitive" and chose a question-led workbook whose rows open level by level, with the CTEPH literature grouped by gene / pathway theme. It now has a guide, seven question sheets (answer in brief, then group › record › source as Excel row outlines; quotes in cell notes; links between sheets), the changes, and six flat appendix tables with filters. The knowledge base follows the same order.
   - In the same change, "Mendelian" evidence is shown as **curated gene evidence** (it includes gene burden and UniProt), and the ClinVar review status, which Open Targets returns as the record's confidence, is kept apart from the classifications of the other sources.
-  - The first build's snapshot (`cteph_opentargets`) was deleted at the user's request.
+  - The first build's snapshot was deleted at the user's request.
 - 2026-10-17: the user asked for a more professional and intuitive knowledge graph and deck, and that every item and value show its basis. Then:
   - The user found that the CTEPH GWAS regions were wrong: the pipeline named them by the top locus-to-gene gene of the three Open Targets credible sets (FGA at the FGG region) and missed the other six regions of Liley 2024, Table 1. The regions now come from the publication (`config/cteph_gwas.yaml`), named as there, with their Open Targets status beside them. Open Targets holds 7 of the 9 lead variants and a CTEPH credible set at 3.
   - At the user's choice, a weaker kind of shared signal was added for the regions without a CTEPH credible set: lead-variant overlap (a credible set of the condition contains the CTEPH lead variant, PIP ≥ ClppMin).
@@ -83,6 +83,135 @@ The first snapshot of that build was deleted on 2026-10-16 at the user's request
   - Structure: the folders follow the pipeline (00 sources … 03 curated, 04 tables, 05 graph, 06–09 products), with an index, the workbook and a new viewer at the top level. The graph is now typed (7 node and 12 edge types, schema in `05.graph/README.md`) and also written as a SQLite database, queried with `scripts/kg.py`. The workbook and the knowledge base follow four parts (A CTEPH genetics, B related conditions, C context, D provenance); the study methods moved next to the gene evidence (sheet 3), and a curation sheet (10) lists every exclusion and correction. For traceability, gene symbols and condition identifiers link to Open Targets, every finding and quote to PubMed, and the guide lists each source with its version and date.
   - A deck on the build and the current snapshot (`deck/`, 18 slides) is generated from the snapshot; it states the current state only and lists no excluded publication. All text of the repository (code, configuration, documentation, products, deck) is in American English; verbatim quotes, publication titles, ontology labels and the extracted methods text stay as written.
 
-- 2026-10-17 (last): the component left the author's CTEPH sequencing project for its own repository, with its code, configuration, model cache and snapshot unchanged and nothing re-run. To run from any location, the pipeline now locates itself (`projectDir`), the figure style is vendored (`scripts/plot_style.py`), `results/latest.json` holds paths relative to `results/`, and `verify.sh` runs from its own folder. The Nextflow work directory was removed: the snapshot is complete, and `--Rebuild` re-derives it from its saved sources (00–02).
+- 2026-10-17 (last): the component moved to its own repository, with its code, configuration, model cache and snapshot unchanged and nothing re-run. To run from any location, the pipeline now locates itself (`projectDir`), the figure style is vendored (`scripts/plot_style.py`), `results/latest.json` holds paths relative to `results/`, and `verify.sh` runs from its own folder. The Nextflow work directory was removed: the snapshot is complete, and `--Rebuild` re-derives it from its saved sources (00–02).
 
 - 2026-10-18: renamed **DiseaseLens** (folder `DiseaseLens`; GitHub `ZhaoTie-re/DiseaseLens`, formerly `cteph_knowledge_graph`). The user repositioned it as a pipeline that reviews the genetics of any disease, with CTEPH as its first application. The pipeline script became `main.nf`; the disease is still configured for CTEPH (`--DiseaseCore`, `--PubmedQuery`, `config/`). Labels, output names and model prompts still name CTEPH; a disease profile that sets them is on the roadmap. The snapshot 2026-10-16 is unchanged apart from the "Generated by" line of its README, knowledge base and graph README.
+
+- 2026-10-19: generalized to any disease, several per run, at the user's request ("for others to build the knowledge
+  graph of their own disease"). Then:
+  - **A disease is its Open Targets ID.** The user required the ID, never a name. `scripts/new_disease.py <ID>`
+    writes `diseases/<key>/profile.yaml`, each value with the rule that chose it. Every rule starts from the ID and
+    can be configured: the profile, optional curated files, the shared rules of `config/`, and the run's parameters.
+    The search rules came from testing several diseases:
+    - an acronym that also names a gene is not searched (PAH, phenylalanine hydroxylase; PPH1, an alias of BMPR2);
+    - an exact synonym that names another disease is not searched ("pulmonary hypertension" for PAH);
+    - an acronym is searched only beside a word of the name: HPAH alone also found human phenylalanine
+      hydroxylase and halogenated polycyclic aromatic hydrocarbons, 57 of 331 records.
+  - **Defaults where CTEPH had curated files.**
+    - GWAS regions from Open Targets.
+    - Curated gene–disease evidence of the disease itself (code C, at level 1 with G; CTEPH has none in Open Targets).
+    - Reactome themes.
+    - Clinical relations read from PubMed guidelines, meta-analyses, cohort and case-control studies.
+    - Generic text-mining rules: a word that names the disease or an ontology neighbor is a false link, and a curated
+      gene named like such a word is left out (PAH for HPAH).
+    - An ontology parent with more than 30 children is too broad to give neighbors ("hereditary disease", 1,070
+      children, for HPAH).
+  - **Two independent model readers, at the user's request.**
+    - Every reading is done twice, and a third model adjudicates where the readers disagree. Only agreed or
+      adjudicated items count, and every dispute is listed.
+    - The three models are named, not left to the CLI's default, after a CLI update changed the default from Opus 5 to
+      Opus 5.5: reader A Opus 5, the model of the cached CTEPH answers; reader B Sonnet 5.5; adjudicator Opus 5.5.
+    - The adjudicator reads the readings in an order that alternates by record.
+    - A first HPAH test showed the adjudicator, then the model of reader A, siding with A on complications that the
+      prompt excludes. Hence the third model, and a clearer rule that consequences of the disease are not related
+      conditions.
+  - **Privacy.**
+    - Keys come from the environment only, and no path of the machine that ran is kept.
+    - The command-line backend adds the account's e-mail address to what the model sees, so any e-mail address not in
+      the source text is removed from every answer before it is cached.
+    - Isolation is tested with a project file holding a random word that a model must not see.
+  - **Several diseases per run** (`results/<key>/`, `results/index.html`). Products are made for sharing as files: a
+    cover sheet, A4 printing, a summary workbook, an information bar and print style in the viewer.
+  - **The generalized code was checked on the 2026-10-16 CTEPH snapshot:** every table, the graph, the figures and the
+    workbook numbers were the same. At the user's choice that snapshot was then dropped, and CTEPH was built anew with
+    HPAH on 2026-10-19.
+  - **The viewer** (user, 2026-10-19): the information bar was removed (the header keeps the snapshot, release and
+    counts; the workbook's cover keeps the readers and how to cite). The Related conditions page holds the condition
+    map, interactive, above the table, which follows the selection. The rules are explained once, on a How it is built
+    page of every viewer (sources → methods → graph at a glance, the build step by step, then the details), as
+    general rules each followed by how they apply to the disease; the map keeps only its key and what it shows.
+  - **East Asian evidence of a relation** (user, 2026-10-20): the flag of a relation, and the diamond of the map, say
+    where the evidence that relates a condition to the disease comes from: clinical evidence from an East Asian
+    population (named in the abstract, when the readers read it), or a shared signal whose two GWAS, the disease's and
+    the condition's, have mostly East Asian samples. A condition's own East Asian GWAS do not make its relation East
+    Asian (they are listed with its genetics); the ontology and a lead-variant overlap never do. An earlier draft
+    counted the condition's own GWAS, and the shared-signal flag had never been set. Clinical evidence from a study
+    done in East Asia counts as for the genetic studies (user, 2026-10-20: a Japanese cohort, PMID 28890480, whose
+    abstract names no country had been flagged not East Asian, while the map, on its older rule, showed a diamond).
+  - **Rules tightened after the first two-disease build** (user, 2026-10-19), for every disease:
+    - Curated gene evidence (code C, and the curated genes of the related conditions): a ClinVar link counts only
+      with a pathogenic or likely pathogenic record of two stars or more, and a gene needs an approved symbol. The
+      curated-gene check of HPAH had found three level-1 genes resting on single-submitter or unreviewed ClinVar
+      records (CAPNS1, NOP58, and a gene without a symbol).
+    - Relations read from PubMed: not a sign, symptom, imaging or laboratory finding of the disease, a molecular or
+      cellular process, an animal or cell experiment, or a comparison between groups of patients; the readers are
+      compared on the category too. The first HPAH reading had kept CT findings of TBX4 carriers and mouse and
+      cell experiments as related conditions.
+    - Relations read from PubMed (user, 2026-10-20, while building PVOD/PCH): a result for a broader group counts
+      only when the disease's patients are most of it or are given apart (a pediatric PH cohort with 9 suspected
+      PVOD had lent its list of syndromes to PVOD/PCH and HPAH); a demographic attribute (sex, age, race or
+      ethnicity) is not a related condition.
+    - A finding of no association is not an association (user, 2026-10-20: IPAH's lipoprotein(a) level, inherited
+      thrombophilia and liver disease severity had entered as related conditions on studies that found none).
+      The direction stays a decisive item of the two readers and the adjudicator.
+    - Conditions without an Open Targets entry are merged when their names differ only by use / exposure or an
+      alias in parentheses (user, 2026-10-20: IPAH had anorexigen and fenfluramine in four and two names).
+    - Open Targets evidence of a disease (user, 2026-10-20): the disease with its descendants, for targets,
+      text-mined literature, GWAS and curated genes alike; and other entries a profile names (evidence_also),
+      proposed by a new profile for a grouping name: PVOD/PCH (MONDO_0018554) has no literature or GWAS evidence of
+      its own, while the literature of pulmonary veno-occlusive disease is mapped to MONDO_0009937.
+    - Summaries that the second reader and the adjudicator find unsupported are withheld with the reason; the share
+      withheld is reported, not held to a threshold.
+    - GWAS regions from Open Targets need a credible lead variant (2026-10-20, from a review of the IPAH build): all
+      fourteen IPAH regions came from one PheCode GWAS of a biobank (GCST90480139, 2,353 cases) with leads of
+      frequency 0 to 0.5 percent, and eight of them gave genes the code G. A first fix left out every lead rarer than
+      1 percent; the user corrected it ("rare variants can be evidence too, as long as they are credible"). A lead is
+      now credible with at least 25 expected copies of its minor allele in the smaller group of its study (Neale lab
+      2017), and, when rare, P < 5 × 10⁻⁹ (Pulit 2017); or when another GWAS of the disease replicates it. Leads that
+      are not credible are listed with the reason. The IPAH signals had 0 to 23 expected copies in the cases.
+  - **A review of the whole build for any disease** (user, 2026-10-20: "rethink the logic of the knowledge graph,
+    check for errors and misunderstandings; it must work for any disease in Open Targets"). Four read-only reviews
+    (sources and profile; model reading; conditions, curation and tables; graph and products) were checked against
+    the four snapshots and the code; every confirmed finding was fixed as a general rule:
+    - **Sources.** The disease's own name is always searched (a database form "A, B" also as "B A"); a short name
+      made up from initials is never searched and is marked for checking; a synonym that names one of the
+      disease's descendants or an entry whose evidence it takes is kept (PVOD lost "pulmonary capillary
+      hemangiomatosis"); the names of those entries are searched (PVOD/PCH missed 30 records of "pulmonary
+      venoocclusive disease"). PubMed is searched by entry date, so that a date finds the same records later.
+      Open Targets lists longer than 3,000 rows (PAH has 4,549 targets) are read in pages until complete; an rsID
+      must match exactly (the search also returns longer rsIDs). A first author without an affiliation is looked
+      up in Europe PMC, not given another author's institution (16 records had been).
+    - **Model reading.** A record's answer is cached on its own, so a record is read once whatever batch it falls
+      in. Short gene names and population words are matched as whole words: "Chin" had matched "which in", so the
+      check of a reader's East Asian flag passed for a reason that would pass a European study too (the study it
+      was found in, from Peking University, is East Asian, by its place and by the city its abstract names; East
+      Asian cities now count as a statement of place); "Asian" alone no longer counts. A methods field stated twice keeps both
+      quotes (74 had been dropped unlogged). Findings without a gene are compared by variant; inclusion agreement
+      counts only records disputed on inclusion; a malformed answer is no answer, never a value; a summary not
+      checked by the second reader, or without a ruling on each disputed claim, is withheld. Abbreviations no
+      longer merge conditions (PE: pulmonary embolism, pleural effusion); the relation prompt names no example
+      consequences of pulmonary hypertension.
+    - **Conditions and tables.** GWAS regions from Open Targets need a credible lead (above); a credible set near a
+      published lead belongs to that region; two regions never share a name. The disease's own GWAS and the entries
+      whose evidence it takes are never related conditions. A publication the curation leaves out removes its GWAS
+      from the regions and shared signals, and each condition's sources and category are taken from the curated
+      relations. The literature links of non-Japanese East Asian studies are flagged East Asian (28 of 67 IPAH
+      links had not been). A gene with curated evidence keeps text-mined links whose word names the disease (PPH1
+      for BMPR2 in IPAH).
+    - **Products.** Excluded publications are counted and listed nowhere (they had remained in the viewer's
+      review table, the SQLite file and the run manifest). Counts are labeled by what they count (the readers'
+      answers, or the items kept after curation; the related conditions' GWAS without the disease's own). The
+      gene map, the regions figure and the regions page state every condition they leave out and why ("No
+      related condition shares a region" had been printed for IPAH, where one trait shares one). A condition
+      whose genetics are not fetched shows no counts instead of zeros.
+    - **The recompute itself showed one more error.** A relation's quote had to contain its condition's name as
+      written, so a quote that used an abbreviation or another word order dropped the relation even when the
+      adjudicator kept it: PVOD/PCH lost mitomycin-C therapy ("MMC therapy is a potent inducer of PVOD"), IPAH lost
+      noncirrhotic portal fibrosis ("NCPF") and autoimmune thyroid disease ("AITD"), HPAH lost fenfluramine exposure
+      ("exposure to fenfluramine"). A quote now names a condition also by its abbreviation in parentheses or by every
+      word of its name but the words of use or exposure.
+    - Not changed: the genetics prompt (its byte identity keeps the cached answers of every disease); a profile's
+      `scope` states which patients count for a subtype. A rebuild does not re-read the relations (METHODS §11).
+  - **The repository holds the pipeline only** (user, 2026-10-19). Snapshots, the model cache and the slides stay on the
+    machine that made them and are shared as files; they were also removed from the repository's history, with the
+    run reports and the paths of the machine that ran them.

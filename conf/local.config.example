@@ -1,0 +1,42 @@
+/* Your own settings for DiseaseLens. Copy this file to conf/local.config (git ignores it) and run with
+ *   nextflow run main.nf -c conf/local.config --diseases <key or disease ID> --FetchDate YYYY-MM-DD
+ * Keys are never written here: an API backend reads its key from the environment variable named by `api_key_env`.
+ */
+params {
+    // A Python 3 with the packages of requirements.txt (default: python3 on PATH)
+    python = 'python3'
+
+    // The language models: two independent readers and an adjudicator. Pick ONE of the three blocks below.
+    //
+    // The two readers and the adjudicator are three different models, each named: the adjudicator decides between the
+    // readers, so it is neither of them; and a named model keeps the run reproducible (a default changes with the tool).
+    //
+    // (1) The Claude Code command-line tool (tested with 2.1.303; run `claude update` if it does not know a model), logged in (`claude` on PATH, or give `bin`).
+    llm = [
+        readers    : [[name: 'A', provider: 'claude-cli', model: 'claude-opus-5'],
+                      [name: 'B', provider: 'claude-cli', model: 'claude-sonnet-5-5']],
+        adjudicator: [provider: 'claude-cli', model: 'claude-opus-5-5'],
+        bin        : 'claude',
+        parallel   : 3,
+    ]
+    //
+    // (2) The Anthropic API: `export ANTHROPIC_API_KEY=...` first, and `pip install anthropic`.
+    // llm = [
+    //     readers    : [[name: 'A', provider: 'anthropic', model: 'claude-opus-5', api_key_env: 'ANTHROPIC_API_KEY'],
+    //                   [name: 'B', provider: 'anthropic', model: 'claude-sonnet-5-5', api_key_env: 'ANTHROPIC_API_KEY']],
+    //     adjudicator: [provider: 'anthropic', model: 'claude-opus-5-5', api_key_env: 'ANTHROPIC_API_KEY'],
+    //     parallel   : 3,
+    // ]
+    //
+    // (3) An OpenAI-compatible endpoint (OpenAI, DeepSeek, a local vLLM or Ollama server): `export OPENAI_API_KEY=...`
+    //     (a local server may need none). The two readers can also be of two different services.
+    // llm = [
+    //     readers    : [[name: 'A', provider: 'openai', model: '<model>', base_url: 'https://api.openai.com/v1',
+    //                    api_key_env: 'OPENAI_API_KEY'],
+    //                   [name: 'B', provider: 'openai', model: '<another model>', base_url: 'https://api.openai.com/v1',
+    //                    api_key_env: 'OPENAI_API_KEY']],
+    //     adjudicator: [provider: 'openai', model: '<a third model>', base_url: 'https://api.openai.com/v1',
+    //                   api_key_env: 'OPENAI_API_KEY'],
+    //     parallel   : 3,
+    // ]
+}

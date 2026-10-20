@@ -1,0 +1,33 @@
+# The text of the CTEPH knowledge base (scripts/build_knowledge.py) that is specific to CTEPH, read through
+# P.text('knowledge', key). {short}, {name} and {Name} are filled in. A disease without this file gets the generic
+# sentences of the script, built from its snapshot.
+
+# section 2.1: the published GWAS regions (Liley 2024, Table 1); the basis of the region names follows it
+regions: >-
+  Liley et al. 2024 (PMID 38470220), Table 1: three tiers of significance on the meta-analysis P value (G), and four
+  further regions significant only in the co-analysis with pulmonary embolism (G*, V < 5 × 10⁻⁸).
+
+# section 6: what the code G* means for {short}
+code_g_star: a region significant only after leveraging PE
+
+# section 10: how the abstracts write the variants the curation names
+variant_examples: >-
+  e.g. factor V Leiden for "FVL", "1691G>A" and "factor V leidan"; HLA-B*52:01 for "B(*)5201"
+
+# section 13: the caveats of {short}, each replacing the generic caveat of the same key (relations, regions,
+# secondary, colocalization, single_region); a caveat is shown only when the snapshot has what it is about
+caveats:
+  relations: >-
+    Relations to {short} are evidence of association (clinical studies, ontology, shared genetic signal), not of
+    causation. Many classic risk factors were found against non-thromboembolic PH controls; against PE survivors most
+    were not enriched (Dodson 2022, PMID 35000431).
+  regions: >-
+    The {short} GWAS regions are those of the publication (Liley 2024, Table 1), named as there. Open Targets holds no
+    summary statistics for this study and fine-maps only some regions, so colocalization is possible at those regions
+    only.
+  secondary: >-
+    G* regions are genome-wide significant only when the genetic similarity with pulmonary embolism is leveraged
+    (conditional false discovery rate V); part of their signal is that of PE, so they are marked apart from G.
+  single_region: >-
+    A trait sharing only the ABO region mostly reflects the pleiotropy of ABO, so single-region relations are weaker
+    than multi-region ones.

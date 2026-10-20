@@ -1,0 +1,55 @@
+# The text of the CTEPH figures and their catalog README (scripts/draw_figures.py) that is specific to CTEPH, read
+# through P.text('figures', key). {short}, {name} and {Name} are filled in. A disease without this file gets the
+# generic sentences of the script, built from its snapshot.
+
+# evidence_grid: what levels 1-2 hold (the published GWAS, Liley 2024, Table 1), in the footnote and in the README
+grid_levels: >-
+  Levels 1–2: the regions of the {short} GWAS as published (Liley 2024, Table 1); G, meta-analysis P < 5 × 10⁻⁸; G*,
+  genome-wide significant only after leveraging pulmonary embolism (V < 5 × 10⁻⁸).
+readme_levels: >-
+  Levels 1–2 come from the published {short} GWAS (Liley 2024, Table 1): G, meta-analysis P < 5 × 10⁻⁸; G*,
+  genome-wide significant only after leveraging pulmonary embolism (V < 5 × 10⁻⁸).
+
+# shared_regions: the brackets over the G and the G* regions
+regions_g: G · {short} meta-analysis P < 5 × 10⁻⁸
+regions_g_star: G* · only after leveraging PE
+
+# gene_map: the derivation of G for {short} (side panel) and of G* (side panel; README)
+gene_map_g_note: (meta-analysis P < 5 × 10⁻⁸; Liley 2024)
+gene_map_g_star: >-
+  a region genome-wide significant only after leveraging pulmonary embolism (V < 5 × 10⁻⁸); marked apart because the
+  signal is partly that of PE.
+g_star: a region significant only after leveraging PE
+
+# condition_map README: what is known of a region that many traits share alone
+region_notes:
+  ABO: pleiotropic
+
+# labels of the conditions in the figures, where the name is too long for a figure; they take precedence over the
+# profile's labels (made for narrow table columns), so the figures spell out VTE, DVT, PE and VWF
+labels:
+  Venous thromboembolism: Venous thromboembolism
+  Deep vein thrombosis: Deep vein thrombosis
+  Pulmonary embolism: Pulmonary embolism
+  von Willebrand factor level: Von Willebrand factor level
+  Chronic thromboembolic pulmonary disease without PH (CTEPD): CTEPD
+  Antiphospholipid syndrome / antiphospholipid antibodies: Antiphospholipid syndrome
+  Ventriculoatrial shunt, infected pacemaker and intravascular devices: Shunts, pacemakers, devices
+  Hypothyroidism / thyroid replacement therapy: Hypothyroidism
+  Malignancy (history of cancer): Malignancy
+  Sickle cell disease and hemoglobinopathies: Sickle cell disease
+  Fibrinogen (level and variants): Fibrinogen
+  Factor XI level (F11 locus): Factor XI level
+  Platelet count and activation: Platelets
+  Pulmonary arterial hypertension associated with another disease: Associated PAH
+  drug- or toxin-induced pulmonary arterial hypertension: Drug-induced PAH
+  heritable pulmonary arterial hypertension: Heritable PAH
+  idiopathic pulmonary arterial hypertension: Idiopathic PAH
+  Pulmonary arterial hypertension: PAH
+  hyperuricemia-pulmonary hypertension-renal failure-alkalosis syndrome: HUPRA syndrome
+  pulmonary veno-occlusive disease and/or pulmonary capillary hemangiomatosis: PVOD / PCH
+  pulmonary hypertension, neonatal: Neonatal PH
+  pulmonary hypertension: Pulmonary hypertension
+  plasminogen activator inhibitor 1 measurement: PAI-1 level
+  tissue plasminogen activator amount: tPA level
+  amount of von Willebrand factor (human) in blood: VWF in blood

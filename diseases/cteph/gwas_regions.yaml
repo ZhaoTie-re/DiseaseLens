@@ -47,3 +47,20 @@ regions:
    p: 8.3e-6, p_pe: 2.2e-7, v: 9.3e-11, tier: 3, evidence: pe}
 - {gene: F5/NME7, genes: [F5, NME7], chrom: '1', pos_grch37: 169272453, rsid: rs796548658, maf: 0.039, or: 1.60,
    p: 1.5e-4, p_pe: 3.9e-18, v: 7.2e-10, tier: 3, evidence: pe}
+
+# How the regions code their genes (ot_common.gene_ladder): `evidence` meta -> G, pe -> G*; the labels of the codes
+# and of the evidence a G* gene gets in the gene x condition table.
+codes: {meta: G, pe: 'G*'}
+labels:
+  G: Genome-wide significant in the CTEPH GWAS
+  G*: Genome-wide significant only after leveraging PE
+evidence_labels:
+  secondary: GWAS (PE-adjusted)
+# the region statistics the products show, and their headers
+columns:
+  p: P (meta-analysis)
+  v: V (with PE)
+  p_pe: P in PE
+  tier: tier
+  or: OR
+  maf: MAF

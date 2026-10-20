@@ -795,7 +795,7 @@ conditions:
     population: European
     statement: The CTEPH GWAS found no association shared with IPAH.
     quote: but find no statistically significant associations shared with idiopathic pulmonary arterial hypertension.
-cteph_facts:
+facts:
 - pmid: '15640334'
   direction: increased risk
   design: case-control

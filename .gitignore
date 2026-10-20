@@ -3,12 +3,21 @@ work/
 .nextflow/
 .nextflow.log*
 run_*.log
+verify*.log
+
+# Your own settings (python, language models): copy conf/local.config.example
+conf/local.config
+
+# What a run makes stays on the machine that made it: the repository holds the pipeline only.
+# results/  the snapshots, products and run reports
+# cache/    the model answers (and their usage log)
+# deck/     slides made from a snapshot
+results/
+cache/
+deck/
 
 # Python and editor leftovers
 __pycache__/
 *.pyc
 .DS_Store
 .vscode/
-
-# Scratch runs (smoke runs write to --results_root <scratch>)
-results/_*/

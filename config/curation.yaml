@@ -1,16 +1,15 @@
-# Curation of the CTEPH knowledge graph: the rules that turn what was fetched and extracted into what the graph
-# holds. Read by scripts/curate.py (step CURATE); every rule it applies is written, row by row, to
-# 03.curated/curation_log.tsv. No rule calls a language model.
+# Curation rules shared by every disease: the rules that turn what was fetched and extracted into what the graph
+# holds. Read by scripts/curate.py (step CURATE) after merging with the disease's own diseases/<key>/curation.yaml;
+# every rule it applies is written, row by row, to 03.curated/curation_log.tsv. No rule calls a language model.
+# Text may name the disease as {short} or {name}: it is filled in from the disease profile.
 #
 #   publications   which publications are left out (retracted; conference material) or flagged, from their PubMed
 #                  record (publication type, issue, pagination, abstract), for every PMID the graph uses
-#   design_classes one design class per genetic study of CTEPH, by precedence
-#   variants       one name (and, where established, an rsID) per variant written several ways in the abstracts
-#   findings       findings whose result is not an association with CTEPH itself: an association with a phenotype
-#                  or outcome within CTEPH, a functional experiment, a background statement; each reviewed against
-#                  its source sentence (2026-10-17)
-#   text_mining    words that Europe PMC text mining mapped to the wrong gene, each reviewed against its sentences
-#                  (2026-10-17)
+#   design_classes one design class per genetic study, by precedence
+#   variants       one name (and, where established, an rsID) per variant written several ways in the abstracts; a
+#                  disease file may add variants of its own genes
+#   findings       the kinds of finding that are not about the disease itself (labels and bases); the findings of each
+#                  kind are listed in the disease file, each reviewed against its source sentence
 #   countries      the place of a study: the country of its first author's institution (PubMed affiliation)
 
 publications:
@@ -140,96 +139,29 @@ variants:
     rsid: ''
     patterns: ['VNTR', '\bLL genotype']
 
-# what a finding is about (column association_with). Default: CTEPH, i.e. the variant is compared between people
-# with CTEPH and people without it (or found in people with CTEPH). The findings below were read against their
-# source sentence and are about something else; `match` is a case-insensitive substring of the source sentence.
-# Only findings about CTEPH count toward levels 3-4 of the evidence ladder.
+# What a finding is about (column association_with). Default: the disease itself, i.e. the variant is compared
+# between people with the disease and people without it (or found in people with it). The kinds below are findings
+# about something else; the findings of each kind are listed, with their source-sentence match, in the disease's
+# curation file. Only findings about the disease itself count toward levels 3-6 of the evidence ladder.
 findings:
-  within_cteph:
-    label: a phenotype or outcome within CTEPH
+  within_disease:
+    label: a phenotype or outcome within {short}
     basis: An association with survival, clinical worsening, exercise capacity, a biomarker, the clinical type or the
       thrombosis history among patients is a modifier of the disease, not evidence that the gene raises its risk.
-    items:
-      - {pmid: '15182267', gene: PTGIS, match: 'LL genotype had higher plasma concentrations',
-         note: plasma 6-keto-prostaglandin F1alpha by genotype, among patients}
-      - {pmid: '16936432', gene: ACE, match: 'lower 6-min walk test distance', note: 6-minute walk distance}
-      - {pmid: '16936432', gene: ACE, match: 'independent predictors of survival', note: survival}
-      - {pmid: '18931448', gene: HLA-B, match: 'HLA-B*5201-positive female patients', note: clinical phenotype and
-           surgical outcome in women}
-      - {pmid: '18931448', gene: HLA-B, match: 'HLA-B*5201-negative female patients', note: clinical phenotype and
-           surgical outcome in women}
-      - {pmid: '19844076', gene: BMPR2, match: 'worse exercise capacity', note: exercise capacity and quality of life
-           in PH}
-      - {pmid: '21930318', gene: HLA-B, match: 'more frequent in HLA-B*5201-negative', note: DVT history among
-           patients}
-      - {pmid: '21930318', gene: HLA-B, match: 'only in HLA-B*5201-negative patients', note: proximal DVT and the
-           central type, among patients}
-      - {pmid: '24531084', gene: GNB3, match: 'time to clinical worsening', note: clinical worsening on sildenafil}
-      - {pmid: '26821322', gene: ACE, match: 'time to clinical worsening', note: clinical worsening}
-      - {pmid: '26821322', gene: GNB3, match: 'time to clinical worsening', note: clinical worsening}
   other_trait:
-    label: another trait, with CTEPH as the exposure
-    basis: A Mendelian randomization study with CTEPH as the exposure reports effects on another trait, not genes of
-      CTEPH.
-    items:
-      - {pmid: '41163636', gene: '', match: 'entorhinal surface', note: brain structure on MRI}
-      - {pmid: '41163636', gene: '', match: 'lateral ventricular volume', note: brain structure on MRI}
+    label: another trait, with {short} as the exposure
+    basis: A Mendelian randomization study with {short} as the exposure reports effects on another trait, not genes
+      of {short}.
   functional:
     label: a functional experiment
     basis: A cell experiment on how a variant acts is not a genetic association.
-    items:
-      - {pmid: '20677013', gene: MIR759, match: 'Co-transfection of miR-759', note: reporter assay of the FGA 3' UTR}
   background:
     label: a background statement, not a finding of the study
     basis: The sentence restates earlier knowledge about another disease; the study did not test it.
-    items:
-      - {pmid: '30047301', gene: BMPR2, match: 'found in 80% of heritable', note: BMPR2 in heritable PAH}
-  # findings that name a group of genes rather than one gene
-  gene_sets:
-    - {pmid: '26820968', match: 'nonsynonymous mutation rate', label: 'PAH genes (BMPR2, ACVRL1, ENG, SMAD9, CAV1,
-         KCNK3, ...)'}
-    - {pmid: '39604025', match: 'CH-associated genes', label: clonal-hematopoiesis genes}
-    - {pmid: '40221599', match: 'non-classical genes', label: non-classical thrombophilia genes}
-  # words in a source sentence that suggest a within-CTEPH finding: a finding of a later snapshot that matches one
-  # and is in none of the lists above is logged for review
+  # words in a source sentence that suggest a finding within the disease: a finding of a later snapshot that matches
+  # one and is in none of the disease's lists is logged for review
   review_words: ['surviv', 'mortality', 'worsening', 'walk', 'exercise', 'quality of life', 'predictor', 'severity',
                  'prognos', 'response to', 'plasma concentration', 'phenotype', 'operative', 'among patients']
-
-# Words that Europe PMC text mining mapped to a gene they do not name in the CTEPH literature. A text-mined
-# target x publication link whose matched words are all listed here for its gene is dropped; listed words are
-# removed from the links that keep another matched word.
-text_mining:
-  - {gene: SGCB, words: [sGC], meaning: soluble guanylate cyclase (GUCY1A1 / GUCY1B1), example: '41154749'}
-  - {gene: PTPA, words: [PTPA], meaning: percutaneous transluminal pulmonary angioplasty, example: '25459043'}
-  - {gene: DST, words: [BPA], meaning: balloon pulmonary angioplasty, example: '38674214'}
-  - {gene: ACOT8, words: [PTE1], meaning: pulmonary thromboendarterectomy (PTE) with a citation number,
-     example: '39550495'}
-  - {gene: TF, words: [TF], meaning: tissue factor (F3), not transferrin, example: '35054082'}
-  - {gene: FASLG, words: [aPL], meaning: antiphospholipid antibodies, example: '30603858'}
-  - {gene: ACLY, words: [aCL], meaning: anticardiolipin antibodies, example: '31134062'}
-  - {gene: LCT, words: [LAC], meaning: lupus anticoagulant, example: '31134062'}
-  - {gene: BTG3, words: [ANA], meaning: antinuclear antibodies, example: '27006850'}
-  - {gene: STUB1, words: [CHIP], meaning: clonal hematopoiesis of indeterminate potential, example: '40499722'}
-  - {gene: C4B, words: [CH], meaning: clonal hematopoiesis, example: '39604025'}
-  - {gene: CPB1, words: [PASP], meaning: pulmonary artery systolic pressure, example: '39372560'}
-  - {gene: PDZK1IP1, words: [sPAP], meaning: systolic pulmonary artery pressure, example: ''}
-  - {gene: CA6, words: [CAVI], meaning: cardio-ankle vascular index, example: '34300176'}
-  - {gene: NR3C2, words: [MR], meaning: mid-regional pro-atrial natriuretic peptide (MR-proANP), example: '33263045'}
-  - {gene: NR1H4, words: [HRR1], meaning: heart rate recovery at 1 minute, example: '35252384'}
-  - {gene: PHF12, words: [PF1], meaning: prothrombin fragment 1+2, example: '41300788'}
-  - {gene: RENBP, words: [Ag], meaning: antigen (as in vWF:Ag), example: '41300788'}
-  - {gene: MMRN1, words: [ECM], meaning: extracellular matrix, example: '33175289'}
-  - {gene: MLC1, words: [MLC], meaning: myosin light chain, example: '39550495'}
-  - {gene: CUBN, words: [Igs], meaning: immunoglobulins, example: '39965671'}
-  - {gene: CD79A, words: [IgA], meaning: immunoglobulin A antibodies, example: '42548663'}
-  - {gene: SOAT1, words: [STAT], meaning: STAT signaling (JAK/STAT), example: '39684570'}
-  - {gene: TEAD1, words: [Aα], meaning: the fibrinogen Aα chain (FGA), example: '36856592'}
-  - {gene: C4A, words: [C4], meaning: PRO-C4, a marker of type IV collagen formation, example: '37178803'}
-  - {gene: LTB4R, words: ['LT) B'], meaning: leukotriene B4 (the ligand), a parsing artifact, example: '14652649'}
-  - {gene: NOS1, words: [NOS], meaning: endothelial NOS (NOS3), example: '28895506'}
-  - {gene: NOS2, words: [NOS], meaning: endothelial NOS (NOS3), example: '28895506'}
-  - {gene: PROS1, words: [protein], meaning: the word "protein", example: ''}
-  - {gene: VPS11, words: [END1], meaning: not identifiable as VPS11 in the sentence, example: '34153003'}
 
 # The country of the first author's institution: the last country named in the first affiliation. Names are
 # matched as words; aliases map to one name; a US state or a city stands for its country when no country is named.
@@ -276,3 +208,12 @@ countries:
               NE, NV, NH, NJ, NM, NY, NC, ND, OH, OK, OR, PA, RI, SC, SD, TN, TX, UT, VT, VA, WA, WV, WI, WY,
               California, Massachusetts, Minnesota, Utah, Texas, Pennsylvania, Maryland, Ohio, Michigan, Illinois]
   east_asian: [Japan, China, Korea, Taiwan, Hong Kong, Mongolia]
+
+# The check of a finding's result against its own source sentence (case-insensitive regular expressions): a finding
+# read as "not associated" whose sentence matches no `negative` pattern, or read as "associated" / "enriched" whose
+# sentence matches a `negative` pattern and no `positive` one, is flagged for review (it is not dropped).
+result_check:
+  negative: ['\bno(t)?\b[^.;]{0,60}\b(significant|associat|differ|correlat)', '\bnon-?significant', '\bfailed to\b',
+             '\bdid not\b', '\bwas not\b', '\bwere not\b', '\bneither\b', '\bnot associated']
+  positive: ['significant', 'associated with', 'increased risk', 'higher (frequency|risk)', 'more frequent',
+             'odds ratio', '\bOR\b', '\bp\s*[<=]\s*0?\.0[0-4]']

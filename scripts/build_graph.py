@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
 # ---------------------------------------------------------------------------
-# Purpose : The knowledge graph of one snapshot, typed and documented, for
-#           programs and for the viewer: every node and edge comes from the
-#           curated literature (03.curated) and the long tables (04.tables).
-#             nodes  condition · gene · region (a published CTEPH GWAS region) ·
-#                    publication · gwas_study · theme (function of a CTEPH gene)
-#                    · pathway (Reactome top level of a text-mined target)
+# Purpose : The knowledge graph of one snapshot of one disease, typed and
+#           documented, for programs and for the viewer: every node and edge comes
+#           from the curated literature (03.curated) and the long tables
+#           (04.tables).
+#             nodes  condition · gene · region (a GWAS region of the disease) ·
+#                    publication · gwas_study · theme (function of a gene of the
+#                    disease) · pathway (Reactome top level of a text-mined target)
 #             edges  related_to · supports · has_genetic_evidence · reports ·
 #                    studies · region_of · names_gene · shares_region ·
 #                    in_theme · in_pathway · mentions · gwas_of
-#           (SCHEMA below: what each type means, its identifier and columns).
-# Inputs  : 03.curated, 04.tables, the gene themes
+#           (schema_of() below: what each type means, its identifier and columns).
+# Inputs  : 03.curated, 04.tables (with ladder.json and themes.json), the profile
 # Outputs : nodes_<type>.tsv, edges_<type>.tsv, nodes.tsv / edges.tsv (all, with
 #           the common columns), graph.json (node-link, networkx-compatible),
 #           schema.json, README.md (the schema and example queries), and
-#           cteph_knowledge_graph.sqlite (the node and edge tables, every
+#           <disease>_knowledge_graph.sqlite (the node and edge tables, every
 #           curated and long table, and the schema)
 # ---------------------------------------------------------------------------
 import argparse
@@ -27,58 +28,64 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ot_common import ABOUT_CTEPH, LADDER, load_themes, log, num, read_tsv, write_tsv  # noqa: E402
+from ot_common import a_, load_ladder, load_profile, load_themes, log, num, read_tsv, write_tsv  # noqa: E402
 
-CORE = 'EFO_0022954'
-CODE = {'GWAS': 'G', 'GWAS (PE-adjusted)': 'G*', 'Mendelian': 'C', 'Literature': 'L'}
-# type: (identifier, meaning, columns beyond id / type / label / url)
-NODES = {
-    'condition': ('the condition\'s ontology ID (EFO_, MONDO_, HP_, Orphanet_; custom: for a curated grouping)',
-                  'CTEPH (EFO_0022954) and the conditions related to it',
-                  ['category', 'sources', 'n_clinical', 'shared_regions', 'n_shared_regions', 'n_gwas_studies',
-                   'n_eas_studies', 'n_credible_sets', 'n_mendelian_genes', 'genetics', 'ot_ids']),
-    'gene': ('Ensembl gene ID', 'a gene with genetic evidence for CTEPH or a related condition, or a text-mined '
-             'CTEPH target',
-             ['cteph_level', 'cteph_code', 'cteph_level_label', 'theme', 'n_related_conditions', 'cteph_ot_score',
-              'n_text_mined_publications', 'pathways']),
-    'region': ('region:<gene named by the publication>', 'a genome-wide significant CTEPH GWAS region (Liley 2024, '
-               'Table 1)', ['rsid', 'chrom', 'pos_grch37', 'tier', 'code', 'p', 'p_pe', 'v', 'or', 'maf',
-                            'open_targets']),
-    'publication': ('PMID:<n> (Europe PMC IDs as EPMC:<id>)', 'a genetic study of CTEPH, a publication the curated '
-                    'clinical evidence cites, or a text-mined CTEPH publication',
-                    ['year', 'first_author', 'title', 'journal', 'roles', 'status', 'place', 'japanese',
-                     'east_asian', 'design_class', 'n_cases', 'n_controls']),
-    'gwas_study': ('the GWAS study ID (GCST..., FINNGEN_...)', 'a GWAS of a related condition (or of CTEPH)',
-                   ['condition', 'trait', 'first_author', 'year', 'pmid', 'n_samples', 'ancestry', 'eas',
-                    'n_credible_sets']),
-    'theme': ('theme:<key> (config/gene_themes.yaml)', 'the function of a CTEPH gene', ['short', 'description']),
-    'pathway': ('reactome:<top-level pathway>', 'a Reactome top-level pathway of text-mined CTEPH targets', []),
-}
-# type: (source type, target type, meaning, columns)
-EDGES = {
-    'related_to': ('condition', 'condition', 'a condition is related to CTEPH; one edge per piece of evidence',
-                   ['evidence_type', 'relation', 'detail', 'quote', 'pmid', 'strength', 'east_asian']),
-    'supports': ('publication', 'condition', 'a publication is the clinical evidence of a relation',
-                 ['relation', 'detail']),
-    'has_genetic_evidence': ('gene', 'condition', 'genetic evidence links a gene to a condition: G (GWAS; for CTEPH '
-                             'a published region), G* (CTEPH region significant only with PE), C (curated), L (a '
-                             'positive finding about CTEPH in a genetic study)', ['code', 'kind', 'n', 'details',
-                                                                                    'eas']),
-    'reports': ('publication', 'gene|condition', 'a genetic study of CTEPH reports a finding on a gene (findings without one '
-                'gene point to CTEPH)', ['result', 'about', 'variant', 'variant_name', 'rsid', 'effect',
-                                          'p_value', 'gene_set', 'quote']),
-    'studies': ('publication', 'condition', 'a genetic study of CTEPH', ['design_class', 'design', 'n_cases',
-                                                                        'n_controls', 'place']),
-    'region_of': ('region', 'condition', 'a published CTEPH GWAS region', ['code', 'tier', 'p']),
-    'names_gene': ('region', 'gene', 'the gene the publication names for a region', []),
-    'shares_region': ('condition', 'region', 'a GWAS signal of a condition is shared with a CTEPH region',
-                      ['method', 'n_signals', 'best', 'measure']),
-    'in_theme': ('gene', 'theme', 'the function of a CTEPH gene', []),
-    'in_pathway': ('gene', 'pathway', 'a Reactome top-level pathway of a text-mined CTEPH target', []),
-    'mentions': ('publication', 'gene', 'a CTEPH publication mentions a gene (Europe PMC text mining, curated)',
-                 ['matched_as', 'n_sentences', 'evidence_score', 'flag']),
-    'gwas_of': ('gwas_study', 'condition', 'a GWAS of the condition', []),
-}
+
+def schema_of(P):
+    """The node and edge types of the graph of a disease: {type: (identifier, meaning, columns)} and
+    {type: (source type, target type, meaning, columns)}."""
+    s = P.short
+    nodes = {
+        'condition': ('the condition\'s Open Targets ID (EFO_, MONDO_, HP_, Orphanet_); custom:<name> for a condition '
+                      'without one (a curated grouping, or a condition the readers found that Open Targets does not '
+                      'name)', f'{s} ({P.id}) and the conditions related to it',
+                      ['category', 'sources', 'n_clinical', 'shared_regions', 'n_shared_regions', 'n_gwas_studies',
+                       'n_eas_studies', 'n_credible_sets', 'n_mendelian_genes', 'genetics', 'genetics_note',
+                       'ot_ids']),
+        'gene': ('Ensembl gene ID', f'a gene with genetic evidence for {s} or a related condition, or a text-mined '
+                 f'{s} target',
+                 ['disease_level', 'disease_code', 'disease_level_label', 'theme', 'n_related_conditions',
+                  'disease_ot_score', 'n_text_mined_publications', 'pathways']),
+        'region': ('region:<its name: the gene the publication names, else its top locus-to-gene gene, else the '
+                   'position of its lead variant>', f'a genome-wide significant GWAS region of {s} (published, '
+                   'or from Open Targets)', ['rsid', 'chrom', 'pos_grch37', 'pos_grch38', 'tier', 'code', 'p', 'p_pe',
+                                             'v', 'or', 'maf', 'open_targets', 'source']),
+        'publication': ('PMID:<n> (Europe PMC IDs as EPMC:<id>)', f'a genetic study of {s}, a publication the clinical '
+                        f'evidence cites, or a text-mined {s} publication',
+                        ['year', 'first_author', 'title', 'journal', 'roles', 'status', 'place', 'japanese',
+                         'east_asian', 'design_class', 'n_cases', 'n_controls', 'agreement']),
+        'gwas_study': ('the GWAS study ID (GCST..., FINNGEN_...)', f'a GWAS of {s} or of a related condition (a study '
+                       'of two conditions has one node and two gwas_of edges)',
+                       ['condition', 'trait', 'first_author', 'year', 'pmid', 'n_samples', 'ancestry', 'eas',
+                        'n_credible_sets']),
+        'theme': ('theme:<key>', f'the function of a gene of {s}', ['short', 'description']),
+        'pathway': ('reactome:<top-level pathway>', f'a Reactome top-level pathway of text-mined {s} targets', []),
+    }
+    edges = {
+        'related_to': ('condition', 'condition', f'a condition is related to {s}; one edge per piece of evidence',
+                       ['evidence_type', 'relation', 'detail', 'quote', 'pmid', 'strength', 'east_asian', 'agreement']),
+        'supports': ('publication', 'condition', 'a publication is the clinical evidence of a relation',
+                     ['relation', 'detail']),
+        'has_genetic_evidence': ('gene', 'condition', f'genetic evidence links a gene to a condition: G (GWAS; for {s} '
+                                 'a gene of its GWAS regions), G* (a region significant only in a secondary analysis), '
+                                 f'C (curated), L (a positive finding about {s} in a genetic study)',
+                                 ['code', 'kind', 'n', 'details', 'eas']),
+        'reports': ('publication', 'gene|condition', f'a genetic study of {s} reports a finding on a gene (findings '
+                    f'without one gene point to {s})', ['result', 'about', 'variant', 'variant_name', 'rsid', 'effect',
+                                                        'p_value', 'gene_set', 'quote', 'agreement']),
+        'studies': ('publication', 'condition', f'a genetic study of {s}', ['design_class', 'design', 'n_cases',
+                                                                           'n_controls', 'place', 'agreement']),
+        'region_of': ('region', 'condition', f'a GWAS region of {s}', ['code', 'tier', 'p']),
+        'names_gene': ('region', 'gene', 'the gene that names a region (published, or its top locus-to-gene gene)', []),
+        'shares_region': ('condition', 'region', f'a GWAS signal of a condition is shared with a region of {s}',
+                          ['method', 'n_signals', 'best', 'measure']),
+        'in_theme': ('gene', 'theme', f'the function of a gene of {s}', []),
+        'in_pathway': ('gene', 'pathway', f'a Reactome top-level pathway of a text-mined {s} target', []),
+        'mentions': ('publication', 'gene', f'{a_(s)} publication mentions a gene (Europe PMC text mining, curated)',
+                     ['matched_as', 'n_sentences', 'evidence_score', 'flag']),
+        'gwas_of': ('gwas_study', 'condition', 'a GWAS of the condition', []),
+    }
+    return nodes, edges
 
 
 def typed(df):
@@ -115,20 +122,26 @@ def url(kind, i):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--profile', required=True, help='profile.json of the disease')
     ap.add_argument('--curated', required=True)
     ap.add_argument('--tables', required=True)
-    ap.add_argument('--themes', required=True)
     ap.add_argument('--out-dir', default='05.graph')
     a = ap.parse_args()
+    P = load_profile(a.profile)
+    NODES, EDGES = schema_of(P)
     Q, T, out = Path(a.curated), Path(a.tables), Path(a.out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    r = lambda d, n: read_tsv(d / f'{n}.tsv')  # noqa: E731
+    r = lambda d, n, cols=None: read_tsv(d / f'{n}.tsv', cols)  # noqa: E731
     cond, rel, co, ov = r(T, 'conditions'), r(T, 'relations'), r(T, 'colocalisation'), r(T, 'overlap')
-    rg, lad, gc = r(T, 'cteph_regions'), r(T, 'cteph_genes'), r(T, 'gene_condition')
-    gw, tg, lit = r(T, 'gwas_studies'), r(T, 'cteph_targets'), r(T, 'literature')
-    st, fi, pubs = r(Q, 'studies'), r(Q, 'findings'), r(Q, 'publications')
+    rg, lad, gc = r(T, 'disease_regions'), r(T, 'disease_genes'), r(T, 'gene_condition')
+    gw, tg, lit = r(T, 'gwas_studies'), r(T, 'disease_targets'), r(T, 'literature')
+    st, fi, pubs = r(Q, 'studies', ['agreement']), r(Q, 'findings', ['agreement']), r(Q, 'publications')
+    rel = rel if 'agreement' in rel else rel.assign(agreement='')
     tidy = json.loads((T / 'tidy.json').read_text())
-    themes = load_themes(a.themes)
+    LADDER, CODES, KIND = load_ladder(T)
+    themes = load_themes(T)
+    CORE, short = P.id, P.short
+    core_name = (tidy.get('core') or {}).get('name') or P.name
     N = {k: [] for k in NODES}
     E = {k: [] for k in EDGES}
     seen = set()
@@ -143,7 +156,7 @@ def main():
         E[etype].append({'source': s, 'target': t, 'type': etype, **kw})
 
     # ── conditions ──────────────────────────────────────────────────────────
-    node('condition', CORE, 'chronic thromboembolic pulmonary hypertension', category='CTEPH')
+    node('condition', CORE, core_name, category=short)
     for c in cond.itertuples():
         node('condition', c.node_id, c.name, **{k: getattr(c, k) for k in NODES['condition'][2]})
     alias = {i: c.node_id for c in cond.itertuples() for i in c.ot_ids.split()} | {CORE: CORE}
@@ -153,7 +166,7 @@ def main():
     pi = pubs.set_index('pmid')
     roles = {}
     for p in st.pmid:
-        roles.setdefault(p, set()).add('genetic study of CTEPH')
+        roles.setdefault(p, set()).add(f'genetic study of {short}')
     for p in rel.pmid[rel.pmid.ne('')]:
         roles.setdefault(p, set()).add('clinical evidence')
     for p in lit.pmid[lit.pmid.ne('')]:
@@ -172,7 +185,8 @@ def main():
              place=(s.place if s is not None else get('institution_country')),
              japanese=(s.japanese if s is not None else ''), east_asian=(s.east_asian if s is not None else ''),
              design_class=(s.design_class_label if s is not None else ''),
-             n_cases=(s.n_cases if s is not None else ''), n_controls=(s.n_controls if s is not None else ''))
+             n_cases=(s.n_cases if s is not None else ''), n_controls=(s.n_controls if s is not None else ''),
+             agreement=(s.agreement if s is not None else ''))
 
     # ── genes ───────────────────────────────────────────────────────────────
     L = lad.set_index('symbol')
@@ -184,57 +198,62 @@ def main():
     for e, s in sorted(sym.items(), key=lambda x: x[1]):
         lv = L.loc[s] if s in L.index else None
         t = tgi.loc[e] if e in tgi.index else None
-        node('gene', e, s, cteph_level=(int(lv.level) if lv is not None else ''),
-             cteph_code=(lv.code if lv is not None else ''), cteph_level_label=(lv.level_label if lv is not None
-                                                                                else ''),
+        node('gene', e, s, disease_level=(int(lv.level) if lv is not None else ''),
+             disease_code=(lv.code if lv is not None else ''),
+             disease_level_label=(lv.level_label if lv is not None else ''),
              theme=(lv.theme if lv is not None else ''), n_related_conditions=int(nrel.get(e, 0)),
-             cteph_ot_score=(t.score if t is not None else ''), n_text_mined_publications=int(nlit.get(e, 0)),
+             disease_ot_score=(t.score if t is not None else ''), n_text_mined_publications=int(nlit.get(e, 0)),
              pathways=(t.themes if t is not None and nlit.get(e, 0) else ''))
     gid = {s: e for e, s in sym.items()}
 
     # ── regions ─────────────────────────────────────────────────────────────
     for x in rg.to_dict('records'):
-        i, code = f'region:{x["gene"]}', 'G' if x['evidence'] == 'meta' else 'G*'
-        node('region', i, f'{x["gene"]} region', code=code, open_targets=(
-            'credible set' if x['cteph_study_locus_id'] else 'lead variant only' if x['variant_id'] else 'not held'),
-            **{k: x[k] for k in ('rsid', 'chrom', 'pos_grch37', 'tier', 'p', 'p_pe', 'v', 'or', 'maf')})
-        edge('region_of', i, CORE, code=code, tier=x['tier'], p=x['p'])
+        i = f'region:{x["gene"]}'
+        node('region', i, f'{x["gene"]} region', code=x['code'], open_targets=(
+            'credible set' if x['disease_study_locus_id'] else 'lead variant only' if x['variant_id'] else 'not held'),
+            **{k: x.get(k, '') for k in ('rsid', 'chrom', 'pos_grch37', 'pos_grch38', 'tier', 'p', 'p_pe', 'v', 'or',
+                                         'maf', 'source')})
+        edge('region_of', i, CORE, code=x['code'], tier=x.get('tier', ''), p=x['p'])
         for g in x['genes'].split():
-            edge('names_gene', i, gid[g])
-    for (cid, g), d in pd.concat([co.assign(method='colocalization', measure='CLPP', val=num(co.clpp)),
-                                  ov.assign(method='lead-variant overlap', measure='PIP', val=num(ov.pip))]).assign(
-            cid=lambda d: d.node_id.map(alias)).dropna(subset=['cid']).groupby(['cid', 'cteph_gene']):
-        m = 'colocalization' if (d.method == 'colocalization').any() else 'lead-variant overlap'
-        dd = d[d.method == m]
-        edge('shares_region', cid, f'region:{g}', method=m, n_signals=int(dd.study_id.nunique()),
-             best=float(dd.val.max()), measure=dd.measure.iloc[0])
+            if g in gid:
+                edge('names_gene', i, gid[g])
+    shared = pd.concat([co.assign(method='colocalization', measure='CLPP', val=num(co.clpp)),
+                        ov.assign(method='lead-variant overlap', measure='PIP', val=num(ov.pip))])
+    if len(shared):
+        for (cid, g), d in shared.assign(cid=lambda d: d.node_id.map(alias)).dropna(subset=['cid']).groupby(
+                ['cid', 'disease_gene']):
+            m = 'colocalization' if (d.method == 'colocalization').any() else 'lead-variant overlap'
+            dd = d[d.method == m]
+            edge('shares_region', cid, f'region:{g}', method=m, n_signals=int(dd.study_id.nunique()),
+                 best=float(dd.val.max()), measure=dd.measure.iloc[0])
 
     # ── relations and their publications ────────────────────────────────────
     for x in rel.itertuples():
         edge('related_to', x.node_id, CORE, evidence_type=x.evidence_type, relation=x.relation, detail=x.detail,
-             quote=x.quote, pmid=x.pmid, strength=x.strength, east_asian=x.east_asian)
+             quote=x.quote, pmid=x.pmid, strength=x.strength, east_asian=x.east_asian, agreement=x.agreement)
         if x.pmid:
             edge('supports', pid(x.pmid), x.node_id, relation=x.relation, detail=x.detail)
 
     # ── genetic evidence, studies, findings ─────────────────────────────────
     for x in gc.itertuples():
-        edge('has_genetic_evidence', x.ensembl_id, x.node_id, code=CODE[x.evidence], kind=x.evidence, n=int(x.n),
+        assert x.evidence in KIND, f'an evidence label without a code: {x.evidence}'
+        edge('has_genetic_evidence', x.ensembl_id, x.node_id, code=KIND[x.evidence], kind=x.evidence, n=int(x.n),
              details=x.details, eas=x.eas)
     for s in st.itertuples():
         edge('studies', pid(s.pmid), CORE, design_class=s.design_class_label, design=s.design, n_cases=s.n_cases,
-             n_controls=s.n_controls, place=s.place)
+             n_controls=s.n_controls, place=s.place, agreement=s.agreement)
     for f in fi.itertuples():
         tgt = f.ensembl_id if f.symbol and f.ensembl_id else CORE
         edge('reports', pid(f.pmid), tgt, result=f.result, about=f.association_with, variant=f.variant,
              variant_name=f.variant_name, rsid=f.rsid, effect=f.effect, p_value=f.p_value,
-             gene_set=f.gene_set or ('' if f.symbol else f.gene), quote=f.quote)
+             gene_set=f.gene_set or ('' if f.symbol else f.gene), quote=f.quote, agreement=f.agreement)
 
     # ── function, pathways, text mining, GWAS studies ───────────────────────
     for t in themes:
         node('theme', f'theme:{t["key"]}', t['name'], short=t.get('short', t['name']), description=t['description'])
     tkey = {t['name']: t['key'] for t in themes}
     for x in lad.itertuples():
-        if x.theme in tkey:
+        if x.theme in tkey and x.symbol in gid:
             edge('in_theme', gid[x.symbol], f'theme:{tkey[x.theme]}')
     for x in tg[tg.ensembl_id.isin(set(lit.ensembl_id))].itertuples():
         for th in [t for t in x.themes.split('; ') if t]:
@@ -250,8 +269,8 @@ def main():
         edge('gwas_of', x.study_id, alias.get(x.node_id, x.node_id))
 
     # ── checks, tables, JSON, SQLite ────────────────────────────────────────
-    nodes = {k: pd.DataFrame(v) for k, v in N.items()}
-    edges = {k: pd.DataFrame(v) for k, v in E.items()}
+    nodes = {k: pd.DataFrame(v, columns=['id', 'type', 'label', 'url'] + NODES[k][2]) for k, v in N.items()}
+    edges = {k: pd.DataFrame(v, columns=['source', 'target', 'type'] + EDGES[k][3]) for k, v in E.items()}
     types = {i: k for k, df in nodes.items() for i in df.id}
     for k, df in edges.items():
         s_t, t_t = EDGES[k][0].split('|'), EDGES[k][1].split('|')
@@ -272,9 +291,11 @@ def main():
                             'columns': ['source', 'target', 'type'] + v[3], 'count': counts['edges'][k]}
                         for k, v in EDGES.items()},
               'ladder': {str(k): {'code': c, 'label': lab} for k, (c, lab) in LADDER.items()},
-              'about': {'default': ABOUT_CTEPH}}
-    meta = {'snapshot': tidy['fetch_date'], 'release': tidy['release'], 'core': CORE,
-            'n_nodes': len(allN), 'n_edges': len(allE), 'counts': counts}
+              'codes': CODES, 'about': {'default': P.about, 'within': P.within},
+              'region_labels': {'p': 'P', 'p_pe': 'P in the secondary analysis', 'v': 'V', 'or': 'OR', 'maf': 'MAF',
+                                'tier': 'tier', **((P.gwas or {}).get('columns') or {})}}
+    meta = {'snapshot': tidy['fetch_date'], 'release': tidy['release'], 'core': CORE, 'core_name': core_name,
+            'short': short, 'key': P.key, 'n_nodes': len(allN), 'n_edges': len(allE), 'counts': counts}
 
     def recs(df):
         return json.loads(df.to_json(orient='records', force_ascii=False))
@@ -283,7 +304,7 @@ def main():
          'edges': [{k: v for k, v in x.items() if k != 'quote'} for df in edges.values() for x in recs(df)]}
     (out / 'graph.json').write_text(json.dumps(g, ensure_ascii=False))
     (out / 'schema.json').write_text(json.dumps({**schema, 'graph': meta}, indent=1, ensure_ascii=False))
-    db = out / 'cteph_knowledge_graph.sqlite'
+    db = out / f'{P.stem}.sqlite'
     db.unlink(missing_ok=True)
     con = sqlite3.connect(db)
     for k, df in nodes.items():
@@ -293,9 +314,19 @@ def main():
     allN.to_sql('nodes', con, index=False)
     allE.to_sql('edges', con, index=False)
     tables = {}
+    # the publications the curation left out are counted, never listed: their rows leave every table here (they
+    # stay in 03.curated, the record of the curation)
+    excluded = set(pubs[pubs.status == 'excluded'].pmid)
+
+    def listed(df):
+        if 'pmid' in df:
+            df = df[~df.pmid.isin(excluded)]
+        if 'item' in df:
+            df = df[[not (set(re.findall(r'PMID (\d+)', str(x))) & excluded) for x in df.item]]
+        return df
     for d, prefix in ((Q, 'curated_'), (T, 'table_')):
         for f in sorted(d.glob('*.tsv')):
-            typed(read_tsv(f)).to_sql(prefix + f.stem, con, index=False)
+            typed(listed(read_tsv(f))).to_sql(prefix + f.stem, con, index=False)
             tables[prefix + f.stem] = f'{d.name}/{f.name}'
     pd.DataFrame([{'key': 'schema', 'value': json.dumps(schema)}, {'key': 'graph', 'value': json.dumps(meta)},
                   {'key': 'tables', 'value': json.dumps(tables)}]).to_sql('meta', con, index=False)
@@ -304,28 +335,31 @@ def main():
         con.execute(sql)
     con.commit()
     con.close()
-    (out / 'README.md').write_text(readme(schema, meta, tables))
+    example = P.checks.get('example_gene') or (lad.symbol.iloc[0] if len(lad) else 'BRCA1')
+    (out / 'README.md').write_text(readme(schema, meta, tables, P, example))
     log(f'graph: {len(allN)} nodes ({counts["nodes"]}), {len(allE)} edges ({counts["edges"]}); SQLite {len(tables)} '
         'tables besides the graph')
 
 
-def readme(schema, meta, tables):
-    md = [f'# CTEPH knowledge graph — graph files (snapshot {meta["snapshot"]}, Open Targets {meta["release"]})', '',
+def readme(schema, meta, tables, P, example):
+    s = P.short
+    md = [f'# {s} knowledge graph — graph files (snapshot {meta["snapshot"]}, Open Targets {meta["release"]})', '',
           'Generated by DiseaseLens (build_graph.py); do not edit by hand. '
           f'{meta["n_nodes"]:,} nodes and {meta["n_edges"]:,} edges, typed as below. Every node and edge comes from '
           'the curated literature (`../03.curated`) and the long tables (`../04.tables`). In the SQLite file a '
           'column whose values are all numbers is numeric (an empty value is NULL); true / false are the text '
-          '"True" / "False".', '',
+          '"True" / "False". The publications the curation left out (retracted, conference material) are counted '
+          'and listed nowhere here; `../03.curated` keeps the record of the curation.', '',
           '| File | Content |', '|---|---|',
           '| `nodes.tsv`, `edges.tsv` | every node (id, type, label, url) and edge (source, target, type) |',
           '| `nodes_<type>.tsv`, `edges_<type>.tsv` | one table per type, with the columns below |',
           '| `graph.json` | node-link JSON (`networkx.node_link_graph(json.load(f), edges="edges")`); edges without '
           'their source quotes |',
           '| `schema.json` | the types below, their counts and the evidence ladder |',
-          '| `cteph_knowledge_graph.sqlite` | the node and edge tables (`node_<type>`, `edge_<type>`, `nodes`, '
+          f'| `{P.stem}.sqlite` | the node and edge tables (`node_<type>`, `edge_<type>`, `nodes`, '
           '`edges`), every curated table (`curated_<name>`) and long table (`table_<name>`), and `meta` |', '',
-          'Query from the shell: `python3 scripts/kg.py` (gene, condition, region, publication, search, '
-          'neighbors, sql); see the component README.', '', '## Node types', '',
+          f'Query from the shell: `python3 scripts/kg.py --disease {P.key}` (gene, condition, region, publication, '
+          'studies, search, neighbors, sql); see the repository README.', '', '## Node types', '',
           '| Type | Identifier | Meaning | Count | Columns |', '|---|---|---|---|---|']
     for k, v in schema['nodes'].items():
         md.append(f'| `{k}` | {v["id"]} | {v["meaning"]} | {v["count"]:,} | {", ".join(v["columns"][4:]) or "—"} |')
@@ -334,22 +368,22 @@ def readme(schema, meta, tables):
         md.append(f'| `{k}` | {v["source"]} → {v["target"].replace("|", " or ")} | {v["meaning"]} | '
                   f'{v["count"]:,} | '
                   f'{", ".join(v["columns"][3:]) or "—"} |')
-    md += ['', '## Evidence ladder of a CTEPH gene (`node_gene.cteph_level`)', '',
+    md += ['', f'## Evidence ladder of a gene of {s} (`node_gene.disease_level`)', '',
            '| Level | Code | Evidence |', '|---|---|---|']
     md += [f'| {k} | {v["code"] or "—"} | {v["label"]} |' for k, v in schema['ladder'].items()]
-    md += ['', 'Levels 3–6 count only findings about CTEPH itself (`edge_reports.about` = "CTEPH"); an association '
-           'with a phenotype or outcome within CTEPH is kept on its edge but does not raise the level.', '',
+    md += ['', f'Levels 3–6 count only findings about {s} itself (`edge_reports.about` = "{P.about}"); an association '
+           f'with a phenotype or outcome within {s} is kept on its edge but does not raise the level.', '',
            '## Example queries (SQLite)', '', '```sql',
-           '-- the CTEPH genes by level, with their function and how many related conditions share them',
-           "SELECT label, cteph_level, cteph_code, theme, n_related_conditions FROM node_gene",
-           "  WHERE cteph_level IS NOT NULL ORDER BY cteph_level, n_related_conditions DESC;", '',
-           '-- every finding on FGA, with its study, place and source sentence',
+           f'-- the genes of {s} by level, with their function and how many related conditions share them',
+           "SELECT label, disease_level, disease_code, theme, n_related_conditions FROM node_gene",
+           "  WHERE disease_level IS NOT NULL ORDER BY disease_level, n_related_conditions DESC;", '',
+           f'-- every finding on {example}, with its study, place and source sentence',
            'SELECT p.label, p.place, r.result, r.about, r.variant_name, r.quote FROM edge_reports r',
-           "  JOIN node_publication p ON p.id = r.source JOIN node_gene g ON g.id = r.target WHERE g.label = 'FGA';", '',
-           '-- conditions sharing two or more CTEPH GWAS regions',
+           f"  JOIN node_publication p ON p.id = r.source JOIN node_gene g ON g.id = r.target WHERE g.label = '{example}';",
+           '', f'-- conditions sharing two or more GWAS regions of {s}',
            'SELECT c.label, COUNT(*) AS regions, GROUP_CONCAT(REPLACE(s.target, \'region:\', \'\')) FROM edge_shares_region s',
            '  JOIN node_condition c ON c.id = s.source GROUP BY c.id HAVING regions >= 2 ORDER BY regions DESC;', '',
-           '-- genetic studies of CTEPH done in Japan',
+           f'-- genetic studies of {s} done in Japan',
            "SELECT label, design_class, n_cases, title FROM node_publication WHERE japanese = 'True' ORDER BY year;",
            '```', '', '## Tables in the SQLite file', '', '| Table | Source |', '|---|---|']
     md += [f'| `{k}` | `../{v}` |' for k, v in tables.items()]

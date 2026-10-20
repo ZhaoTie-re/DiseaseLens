@@ -1,0 +1,13 @@
+# An example project: four diseases built in one run.
+#   nextflow run main.nf -c conf/local.config -params-file projects/pulmonary_hypertension.yaml
+# A disease is a folder of diseases/ (or its Open Targets ID, once the folder exists). FetchDate is the snapshot date
+# of every disease that names none; an entry can give its own: {key: hpah, fetch_date: '2026-10-19'}, and
+# {key: cteph, fetch_date: '2026-10-19', rebuild: true} re-derives that snapshot from its saved sources. Any
+# parameter of nextflow.config can be set here too.
+diseases:
+  - cteph     # chronic thromboembolic pulmonary hypertension (EFO_0022954): curated relations, published GWAS regions
+  - hpah      # heritable pulmonary arterial hypertension (MONDO_0017148): a profile written from its ID
+  - ipah      # idiopathic pulmonary arterial hypertension (MONDO_0001999): GWAS regions from Open Targets
+  - pvod_pch  # pulmonary veno-occlusive disease and/or pulmonary capillary haemangiomatosis (MONDO_0018554):
+              # a grouping name, with the evidence of MONDO_0009937 (evidence_also)
+FetchDate: '2026-10-20'

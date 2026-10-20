@@ -1,0 +1,30 @@
+# The disease profile of pulmonary veno-occlusive disease and/or pulmonary capillary haemangiomatosis, written by scripts/new_disease.py from Open Targets 26.09.
+# Every value below follows the rule given beside it; edit any of them, then run the pipeline. Only `id`
+# is required; the related conditions, GWAS regions, gene themes and curation follow the defaults of the
+# pipeline (README, "Add a disease").
+id: MONDO_0018554            # the Open Targets disease ID (required)
+name: 'pulmonary veno-occlusive disease and/or pulmonary capillary haemangiomatosis'     # its Open Targets name
+short: 'PVOD/PCH'          # the short names of the diseases the name joins ("A and/or B"), joined by "/"
+
+pubmed:
+  # the disease in title or abstract: its name, exact synonyms and short name, without the terms that would find other things:
+  #   PVOD/PCH: left out, also names another disease (pulmonary arterial hypertension)
+  #   acronyms: searched only beside a word of the name (pulmonary OR veno OR occlusive OR capillary OR haemangiomatosis OR hemangiomatosis)
+  #   the names of the entries whose evidence it takes (evidence_also) are searched too (2026-10-20)
+  terms: '("pulmonary veno-occlusive disease and/or pulmonary capillary haemangiomatosis"[tiab] OR "PVOD and/or PCH"[tiab] OR "pulmonary veno-occlusive disease"[tiab] OR "pulmonary capillary haemangiomatosis"[tiab] OR (PVOD[tiab] AND (pulmonary[tiab] OR veno[tiab] OR occlusive[tiab] OR capillary[tiab] OR haemangiomatosis[tiab] OR hemangiomatosis[tiab])) OR (PCH[tiab] AND (pulmonary[tiab] OR veno[tiab] OR occlusive[tiab] OR capillary[tiab] OR haemangiomatosis[tiab] OR hemangiomatosis[tiab])) OR "pulmonary venoocclusive disease"[tiab] OR "pulmonary capillary hemangiomatosis"[tiab] OR "pulmonary veno-occlusive disease and/or pulmonary capillary hemangiomatosis"[tiab])'
+  # which studies count as studies of the disease, given to the language-model readers (optional):
+  # scope: <one or two sentences>
+
+# The neighbors of the disease in the ontology (all on by default); a parent with too many children is
+# left out by the pipeline (MaxOntologyChildren).
+# parents:  respiratory system disorder, pulmonary arterial hypertension
+# children: pulmonary venoocclusive disease 2
+ontology:
+  category: Disease group   # the category of the ontology neighbors in the products
+
+# Other Open Targets entries whose evidence (targets, text-mined literature, GWAS, curated genes) is
+# fetched with the disease's own; the products name them. Proposed: an entry that a part of a grouping
+# name ("A and/or B") names, other than the disease and its descendants.
+#   Open Targets holds no text-mined literature or GWAS evidence for MONDO_0018554 (with its descendants)
+evidence_also: [MONDO_0009937]
+#   MONDO_0009937 pulmonary venoocclusive disease: the name names "pulmonary capillary haemangiomatosis" and "pulmonary veno-occlusive disease"

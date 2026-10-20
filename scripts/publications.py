@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # ---------------------------------------------------------------------------
 # Purpose : The PubMed record of every publication the knowledge graph uses, for
-#           its status and its place: the genetic-study search and the curated
-#           seed (00.pubmed), the text-mined CTEPH literature, the GWAS
+#           its status and its place: the genetic-study search and the seed
+#           (00.pubmed), the text-mined literature of the disease, the GWAS
 #           publications and the references of the curated gene evidence
-#           (00.raw), and the relation evidence (01.conditions). A record:
+#           of the disease and of its conditions (00.raw), and the relation
+#           evidence (01.conditions). A record:
 #           publication types, journal issue and pagination, whether PubMed holds
 #           an abstract, title, journal, year, DOI, PMCID, the first author and
 #           the first author's affiliation (from Europe PMC when PubMed has
@@ -31,7 +32,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ot_common import load_json, log, read_tsv, write_json  # noqa: E402
+from ot_common import NETWORK_ERRORS, load_json, log, read_tsv, write_json  # noqa: E402
 
 EFETCH = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi'
 EPMC = 'https://www.ebi.ac.uk/europepmc/webservices/rest/searchPOST'
@@ -54,7 +55,7 @@ def post(url, data, tries=5):
             if e.code < 500 and e.code != 429:
                 raise RuntimeError(f'HTTP {e.code}: {url}')
             err = e
-        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+        except NETWORK_ERRORS as e:
             err = e
         time.sleep(2 ** k * 2)
     raise RuntimeError(f'unreachable after {tries} tries: {url}: {err}')
@@ -79,7 +80,9 @@ def parse(xml):
                 (' ' + f.findtext('Initials') if f.findtext('Initials') else '')
             aff = text_of(f.find('AffiliationInfo/Affiliation'))
         aff_source = 'first author' if aff else ''
-        if not aff:   # a collective first author: the first affiliation of the list
+        if not aff and auth and auth[0].findtext('CollectiveName'):
+            # a collective first author (a consortium): the first affiliation of the list; any other first author
+            # without one is looked up in Europe PMC (below), never given another author's institution
             aff = next((text_of(x) for x in a.findall('AuthorList/Author/AffiliationInfo/Affiliation')), '')
             aff_source = 'first listed affiliation' if aff else ''
         ids = {i.get('IdType'): i.text for i in art.findall('PubmedData/ArticleIdList/ArticleId')}
@@ -137,7 +140,7 @@ def collect(a):
             roles.setdefault(pid, set()).add(role)
     for f in a.pubmed:
         d = load_json(f)
-        role = 'genetic-study search' if d.get('mode') == 'search' else 'curated seed'
+        role = 'genetic-study search' if d.get('mode') == 'search' else 'relation evidence'
         for r in d['records']:
             add(r['pmid'], role)
     raw = Path(a.raw)
@@ -147,6 +150,10 @@ def collect(a):
                 add(p, 'text-mined literature')
     for s in load_json(raw / 'gwas.json.gz')['studies']:
         add(s.get('pubmedId'), 'GWAS publication')
+    if (raw / 'mendelian.json.gz').exists():
+        for e in load_json(raw / 'mendelian.json.gz')['mendelian_evidence']:
+            for p in e.get('literature') or []:
+                add(p, 'curated gene evidence')
     for f in a.diseases:
         d = load_json(f)
         for s in d['studies']:
@@ -173,8 +180,13 @@ def main():
     pmids = sorted((p for p in roles if p.isdigit()), key=int)
     other = {p: sorted(r) for p, r in roles.items() if not p.isdigit()}
     recs = []
+    # a PMID written with a leading zero (0587156, in a curated source) is asked for as a number and keeps its form
+    given = {str(int(p)): p for p in pmids}
     for i in range(0, len(pmids), a.batch):
-        recs += parse(post(EFETCH, {'db': 'pubmed', 'id': ','.join(pmids[i:i + a.batch]), 'retmode': 'xml'}))
+        recs += parse(post(EFETCH, {'db': 'pubmed', 'id': ','.join(str(int(p)) for p in pmids[i:i + a.batch]),
+                                    'retmode': 'xml'}))
+    for r in recs:
+        r['pmid'] = given.get(r['pmid'], r['pmid'])
     got = {r['pmid'] for r in recs}
     missing = [p for p in pmids if p not in got]
     need = [r['pmid'] for r in recs if not r['affiliation']]
@@ -183,7 +195,7 @@ def main():
         if not r['affiliation'] and r['pmid'] in epmc:
             r['affiliation'], r['affiliation_source'] = epmc[r['pmid']], 'Europe PMC'
     log(f'affiliations: {len(need)} records without one in PubMed, {len(epmc)} found in Europe PMC')
-    write_json({'checked_at': dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds'), 'n': len(recs),
+    write_json({'checked_at': dt.datetime.now().astimezone().isoformat(timespec='seconds'), 'n': len(recs),
                 'roles': {p: sorted(roles[p]) for p in pmids}, 'records': sorted(recs, key=lambda r: int(r['pmid'])),
                 'not_found': missing, 'other_ids': other}, a.out)
     log(f'{len(pmids)} PMIDs: {len(recs)} PubMed records, {len(missing)} not found; {len(other)} other identifiers')

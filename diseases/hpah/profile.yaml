@@ -1,0 +1,21 @@
+# The disease profile of heritable pulmonary arterial hypertension, written by scripts/new_disease.py from Open Targets 26.09.
+# Every value below follows the rule given beside it; edit any of them, then run the pipeline. Only `id`
+# is required; the related conditions, GWAS regions, gene themes and curation follow the defaults of the
+# pipeline (README, "Add a disease").
+id: MONDO_0017148            # the Open Targets disease ID (required)
+name: 'heritable pulmonary arterial hypertension'     # its Open Targets name
+short: 'HPAH'          # the shortest acronym among the exact synonyms in Open Targets that spells the name
+
+pubmed:
+  # the disease in title or abstract: its name, exact synonyms and short name
+  #   acronyms: searched only beside a word of the name (heritable OR pulmonary OR arterial OR hypertension)
+  terms: '("heritable pulmonary arterial hypertension"[tiab] OR (FPAH[tiab] AND (heritable[tiab] OR pulmonary[tiab] OR arterial[tiab] OR hypertension[tiab])) OR (HPAH[tiab] AND (heritable[tiab] OR pulmonary[tiab] OR arterial[tiab] OR hypertension[tiab])) OR "familial pulmonary arterial hypertension"[tiab] OR "hereditary pulmonary arterial hypertension"[tiab])'
+  # which studies count as studies of the disease, given to the language-model readers (optional):
+  # scope: <one or two sentences>
+
+# The neighbors of the disease in the ontology (all on by default); a parent with too many children is
+# left out by the pipeline (MaxOntologyChildren).
+# parents:  pulmonary arterial hypertension, hereditary disease
+# children: pulmonary hypertension, primary, 5, pulmonary hypertension, primary, 2, pulmonary hypertension, primary, 3, pulmonary hypertension, primary, 4, pulmonary hypertension, primary, 1, pulmonary hypertension, primary, 6, pulmonary hypertension, primary, 7
+ontology:
+  category: Disease group   # the category of the ontology neighbors in the products

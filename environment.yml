@@ -1,0 +1,19 @@
+# conda env create -f environment.yml && conda activate diseaselens
+# Everything DiseaseLens needs to run, with the versions it was tested with (2026-10).
+name: diseaselens
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.12
+  - pandas=2.2
+  - numpy=1.26
+  - matplotlib=3.8
+  - pyyaml=6.0
+  - xlsxwriter=3.2
+  - openpyxl=3.1
+  - nextflow=26.04
+  - openjdk=17
+  - pip
+  - pip:
+      - anthropic   # only for the Anthropic API backend
