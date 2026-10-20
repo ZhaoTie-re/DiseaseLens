@@ -413,7 +413,7 @@ svg text { font: 11px sans-serif; fill: var(--ink); }
 .cmap-all { margin: 10px 0 4px; }
 .cmap-all summary { cursor: pointer; color: var(--head); font-weight: 600; }
 /* the evidence matrix of the related conditions: counts shaded by bins, the number in the cell */
-table.mx { width: auto; min-width: 100%; font-size: 12.5px; }
+table.mx { width: auto; font-size: 12.5px; }
 table.mx th, table.mx td { padding: 3px 6px; border-bottom: 1px solid #eef0f3; }
 table.mx tr.mx-g th { text-align: center; font-size: 11.5px; color: var(--ink2); border-bottom: 1px solid var(--line); }
 table.mx th.mx-s { cursor: pointer; } table.mx th.mx-s.on { color: var(--link); text-decoration: underline; }
@@ -497,7 +497,8 @@ table.proc td.proc-here { width: 22%; color: var(--ink); font-size: 12.5px; }
 .fb-l { font-size: 12px; line-height: 1.35; margin: 2px 0 4px; } .fb-by .badge { font-size: 10px; margin-right: 2px; }
 .fb-arrow { align-self: center; color: var(--ink2); font-size: 16px; }
 /* the matrix scrolls in its own box: its header and its first column stay in place */
-.mx-scroll { max-height: calc(100vh - 170px); overflow: auto; border: 1px solid var(--line); border-radius: 4px; }
+.mx-scroll { display: inline-block; max-width: 100%; vertical-align: top; max-height: calc(100vh - 170px);
+  overflow: auto; border: 1px solid var(--line); border-radius: 4px; }
 table.mx thead { position: sticky; top: 0; z-index: 3; }
 table.mx thead th { background: var(--panel); }
 table.mx th.mx-name { z-index: 4; }
