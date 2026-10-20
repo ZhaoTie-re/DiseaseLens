@@ -363,7 +363,7 @@ flowchart TD
 
   | Reason | The quote … |
   |---|---|
-  | not about the disease | reports a result about another disease or outcome (a related but different disease, a suspected or composite outcome), or for a broader group in which the disease's patients are not most |
+  | not about the disease | reports a result about another disease or outcome (a related but different disease, a suspected or composite outcome), or for a broader group in which the disease's patients are not most: patients defined by a wider diagnosis, spectrum or stage that also holds patients without the disease, unless the record gives their result apart |
   | no relation stated | is background, a study aim or rationale, a design statement, or says only that two conditions share features or must be told apart |
   | comparison with another disease | compares the disease's patients with another disease's patients only |
   | consequence or finding | names a consequence or complication of the disease or its treatment, or a finding or measurement among its patients (heart failure, hypoxemia, anxiety or depression reported among its patients) |

@@ -241,7 +241,9 @@ groups:
       found about half with a problem that the source-text check cannot see (a quote that is background or a study
       aim, a result about another disease or outcome, a comparison with another disease's patients, a condition that
       defines another form of the parent class under an older umbrella name). The readers are given the ontology
-      siblings of the disease. Every decision, with both readings and the adjudicator's reason, is listed.
+      siblings of the disease. Every decision, with both readings and the adjudicator's reason, is listed. A result
+      for patients defined by a wider diagnosis, spectrum or stage that also holds patients without the disease is
+      not about the disease unless the record gives it apart (decided with the user, 2026-10-21).
     used_in: sheet 4; sheet 10
   - key: condition_mapping
     item: Mapping a condition to Open Targets

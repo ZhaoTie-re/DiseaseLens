@@ -1443,7 +1443,8 @@ function relationsGuide() {
           attached: C.feature, dropped: C.drop}) + `); ${ag(C.agreement)}.` : ''),
       st(7, 'Verification', ['model'], 'Both readers judge every evidence row against its quote, with the category ' +
         `definitions below and the ontology neighbors of ${S}, and the adjudicator decides where they differ. A row ` +
-        `is kept with its category, or dropped as: not about ${S}; no relation stated (background, an aim, a ` +
+        `is kept with its category, or dropped as: not about ${S} (another disease, or a wider group that also ` +
+        `holds patients without ${S}); no relation stated (background, an aim, a ` +
         'resemblance); a comparison with another disease only; a consequence or finding among patients; or a ' +
         `condition that defines another form of ${S}'s parent class. Each condition is then kept, dropped, merged or ` +
         'attached; a condition left without a row leaves. This is where a row\'s category is settled.',

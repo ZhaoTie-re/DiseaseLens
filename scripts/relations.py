@@ -579,7 +579,9 @@ every condition by these rules, and by the text given only.
 A row counts when its quote, read in its record, states a relation between the condition and {s} itself. Drop a row,
 with the code of the reason, when:
 - "not_about_disease": its result is about another disease or outcome (a related but different disease, a suspected
-  or composite outcome), or about a broader group in which {s} patients are not most;
+  or composite outcome), or about a broader group in which {s} patients are not most: patients defined by a wider
+  diagnosis, spectrum or stage that also holds patients without {s}, unless the record gives the result for {s}
+  patients apart;
 - "no_relation_stated": the quote is background, a study aim or rationale, a design statement, or says only that two
   conditions share features, resemble each other or must be told apart;
 - "other_disease_comparison": the quote compares {s} patients with patients of another disease only, not with people
