@@ -50,8 +50,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ot_common import (EAS_COUNTRIES, NO_LEVEL, OTHER_GENES, SHARED_SIGNAL, load_choices,  # noqa: E402
-                       load_glosses, load_profile, load_status, log, not_regions_of, not_regions_sentence, read_tsv)
+from ot_common import (EAS_COUNTRIES, NO_LEVEL, OTHER_GENES, SHARED_SIGNAL, disease_badge,  # noqa: E402
+                       load_choices, load_glosses, load_profile, load_status, log, not_regions_of, not_regions_sentence, read_tsv)
 
 WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve']
 
@@ -202,7 +202,8 @@ def main():
     choices, _refs = load_choices(P, run_params, T)
     data = {
         'meta': {**schema['graph'], 'checked_at': cur['checked_at'][:10]},
-        'disease': {'id': P.id, 'key': P.key, 'name': P.name, 'Name': P.Name, 'short': P.short},
+        'disease': {'id': P.id, 'key': P.key, 'name': P.name, 'Name': P.Name, 'short': P.short,
+                    **dict(zip(('mark', 'color'), disease_badge(P.short, P.id)))},
         'about': schema.get('about') or {'default': P.about, 'within': P.within},
         'schema': {'nodes': {k: v['meaning'] for k, v in schema['nodes'].items()},
                    'edges': {k: v['meaning'] for k, v in schema['edges'].items()}},
@@ -260,7 +261,11 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 -app
 header { background: var(--head); color: #fff; padding: 12px 24px; display: flex; flex-wrap: wrap; gap: 10px 28px;
          align-items: center; }
 header .brand { flex: 1 1 520px; min-width: 0; }
-header h1 { font-size: 19px; margin: 0; font-weight: 650; letter-spacing: .2px; }
+header h1 { font-size: 19px; margin: 0; font-weight: 650; letter-spacing: .2px; display: flex; align-items: center; }
+/* the disease's mark, the same as on its browser tab */
+.mark { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 28px; height: 28px;
+        border-radius: 6px; color: #fff; font-size: 12.5px; font-weight: 700; letter-spacing: .3px;
+        box-shadow: 0 0 0 1.5px rgba(255,255,255,.55); margin-right: 10px; }
 header .meta { font-size: 12.5px; opacity: .9; margin-top: 2px; }
 header .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
 header .chips span { font-size: 11.5px; background: rgba(255,255,255,.13); border: 1px solid rgba(255,255,255,.22);
@@ -345,7 +350,6 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
 svg text { font: 11px sans-serif; fill: var(--ink); }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--ink2); margin: 6px 0; }
 .legend span { display: inline-flex; gap: 5px; align-items: center; }
-.more { margin-top: 6px; }
 .summary { background: var(--panel); border-left: 3px solid var(--t-theme); padding: 8px 12px; margin: 8px 0;
            font-size: 13px; }
 /* the condition map: hover a condition for its evidence, click to open it; a category selects its conditions */
@@ -429,12 +433,23 @@ table.plain td { font-size: 13px; }
 .agree-bar .both { background: #5b8c6e; } .agree-bar .adj { background: #c9a25b; }
 .agree-v { color: var(--ink2); }
 @media (max-width: 700px) { .agree-row { grid-template-columns: 1fr; } .llm-steps { grid-template-columns: 1fr; } }
-.print-only { display: none; }
+.pager { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 8px 0 4px; font-size: 12.5px;
+         color: var(--ink2); }
+.pg-links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.pg { border: 1px solid var(--line); background: #fff; color: var(--link); border-radius: 4px; padding: 2px 9px;
+      min-width: 30px; cursor: pointer; font-size: 12.5px; }
+.pg:hover:not([disabled]) { border-color: var(--link); }
+.pg.on { background: var(--head); border-color: var(--head); color: #fff; font-weight: 600; cursor: default; }
+.pg[disabled]:not(.on) { color: #b0b6bd; cursor: default; }
+.pager .gap { padding: 0 2px; }
+.pg-size { margin-left: auto; white-space: nowrap; }
+.pg-size select { margin-left: 4px; padding: 1px 4px; font-size: 12.5px; }
+.tbl { scroll-margin-top: calc(var(--navh) + 8px); }
 /* print, or save as PDF: the current page as a document */
 @media print {
   @page { margin: 12mm; }
   body { font-size: 9.5pt; }
-  nav, #search-wrap, #suggest, .tools, .btn, .cmap-tip, .hscroll-hint { display: none !important; }
+  nav, #search-wrap, #suggest, .tools, .btn, .cmap-tip, .hscroll-hint, .pager { display: none !important; }
   th { top: 0; }
   header { background: none; color: var(--ink); padding: 0 0 4px; border-bottom: 2px solid var(--head); }
   header h1 { color: var(--head); }
@@ -462,7 +477,6 @@ table.plain td { font-size: 13px; }
   a { color: inherit; text-decoration: none; }
   a.ext::after { content: ""; }
   .facts a.ext::after { content: " <" attr(href) ">"; font-size: 8pt; color: var(--ink2); }
-  .print-only { display: block; }
   .llm-step, .agree-row { break-inside: avoid; page-break-inside: avoid; }
   .lv1, .lv2, .lv3, .lv4, .lv5, .lv6, .lv7, .badge, .dot, .card, th, svg, .agree-bar span, .swatch {
     -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -471,7 +485,7 @@ table.plain td { font-size: 13px; }
 </head>
 <body>
 <header>
-  <div class="brand"><h1>__TITLE__</h1><div class="meta" id="meta"></div><div class="chips" id="chips"></div></div>
+  <div class="brand"><h1><span class="mark" id="mark"></span>__TITLE__</h1><div class="meta" id="meta"></div><div class="chips" id="chips"></div></div>
   <div id="search-wrap"><input id="search" type="search" placeholder="Search a gene, condition, PMID, region…"
        autocomplete="off"><div id="suggest"></div></div>
 </header>
@@ -554,20 +568,33 @@ const agree = v => v === 'adjudicated' ? h('span', {class: 'badge adj', title: '
   'adjudicator decided'}, 'adjudicated') : v === 'both' ? h('span', {class: 'badge both', title: 'both readers gave ' +
   'the same answer'}, 'both') : v === 'one reader' ? h('span', {class: 'badge one'}, 'one reader') : (v || '');
 
-// a sortable, filterable table: cols [{label, get(row) -> value for sort/filter, cell(row) -> node}]
+// the rows per page of every long table: one choice for the whole viewer, kept in this browser (links open new tabs,
+// which keep it); 0 shows every row. Printing shows every row.
+const PAGE_SIZES = [10, 25, 50, 100, 0];
+let PAGE_SIZE = 25, PRINTING = false;
+try { const v = localStorage.getItem('diseaselens.pageSize');
+      if (v !== null && PAGE_SIZES.includes(Number(v))) PAGE_SIZE = Number(v); }
+catch (e) { /* no storage: the default */ }
+const PAGED = [];   // the redraw of each table on the page
+
+// a sortable, filterable, paged table: cols [{label, get(row) -> value for sort/filter, cell(row) -> node}]
 function table(cols, rows, opts = {}) {
-  let sortBy = opts.sort ?? null, dir = opts.dir ?? 1, q = '', limit = opts.limit || 200;
-  const wrap = h('div');
+  let sortBy = opts.sort ?? null, dir = opts.dir ?? 1, q = '', page = 0;
+  const wrap = h('div', {class: 'tbl'});
   const input = opts.filter === false || rows.length <= 8 ? null :
     h('input', {type: 'search', placeholder: 'Filter these rows…', oninput: e => { q = e.target.value.toLowerCase();
-      draw(); }});
+      page = 0; draw(); }});
   const count = h('span', {class: 'note'});
   if (input || opts.tools) wrap.append(h('div', {class: 'tools'}, input, opts.tools || null, count));
-  const tbl = h('table'), body = h('tbody'), more = h('div', {class: 'more'});
+  const tbl = h('table'), body = h('tbody'), pager = h('div', {class: 'pager'});
   const head = h('tr');
   cols.forEach((c, i) => head.append(h('th', {class: c.get ? null : 'nosort', onclick: () => {
-    if (!c.get) return; dir = sortBy === i ? -dir : (c.num ? -1 : 1); sortBy = i; draw(); }}, c.label)));
-  tbl.append(h('thead', {}, head), body); wrap.append(tbl, more);
+    if (!c.get) return; dir = sortBy === i ? -dir : (c.num ? -1 : 1); sortBy = i; page = 0; draw(); }}, c.label)));
+  tbl.append(h('thead', {}, head), body); wrap.append(tbl, pager);
+  // a new page starts at the top of the table, below the navigation
+  const go = p => { page = p; draw();
+    const top = wrap.getBoundingClientRect().top, nav = document.getElementById('nav').offsetHeight;
+    if (top < nav) window.scrollBy(0, top - nav - 8); };
   function draw() {
     let rs = rows;
     if (q) rs = rs.filter(r => cols.some(c => c.get && String(c.get(r) ?? '').toLowerCase().includes(q)));
@@ -578,13 +605,36 @@ function table(cols, rows, opts = {}) {
         return (c.num ? (num(x) - num(y)) : String(x ?? '').localeCompare(String(y ?? ''))) * dir;
       });
     }
-    body.replaceChildren(...rs.slice(0, limit).map(r => h('tr', {}, cols.map(c =>
+    const size = PRINTING || !PAGE_SIZE ? Math.max(rs.length, 1) : PAGE_SIZE;
+    const pages = Math.max(1, Math.ceil(rs.length / size));
+    page = Math.min(page, pages - 1);
+    const from = page * size, shown = rs.slice(from, from + size);
+    body.replaceChildren(...shown.map(r => h('tr', {}, cols.map(c =>
       h('td', {class: c.num ? 'num' : null}, c.cell ? c.cell(r) : c.num ? fmt(c.get(r)) : linkIds(fmt(c.get(r))))))));
     count.textContent = rs.length === rows.length ? `${rows.length} rows` : `${rs.length} of ${rows.length} rows`;
-    more.replaceChildren(...(rs.length > limit ? [h('button', {class: 'btn', onclick: () => { limit += 500; draw(); }},
-      `Show more (${rs.length - limit} hidden)`), h('div', {class: 'note print-only'}, `The first ${limit} of ` +
-      `${rs.length} rows; the viewer lists every row (“Show more”).`)] : []));
+    // the pager: only for a table longer than a page (or than the default page, when every row is shown)
+    if (PRINTING || rs.length <= (PAGE_SIZE || 25)) { pager.replaceChildren(); return; }
+    const btn = (text, p, attrs = {}) => h('button', {class: 'pg' + (p === page ? ' on' : ''), disabled:
+      p < 0 || p >= pages || p === page ? '' : null, onclick: () => go(p), ...attrs}, text);
+    const nums = [...new Set([0, page - 1, page, page + 1, pages - 1])].filter(p => p >= 0 && p < pages)
+      .sort((a, b) => a - b);
+    const links = [];
+    nums.forEach((p, i) => { if (i && p - nums[i - 1] > 1) links.push(h('span', {class: 'gap'}, '…'));
+      links.push(btn(String(p + 1), p, {'aria-label': `Page ${p + 1}`})); });
+    const sel = h('select', {'aria-label': 'Rows per page', onchange: e => {
+      const first = page * (PAGE_SIZE || rs.length);
+      PAGE_SIZE = Number(e.target.value);
+      try { localStorage.setItem('diseaselens.pageSize', String(PAGE_SIZE)); } catch (err) { /* kept for this page */ }
+      page = PAGE_SIZE ? Math.floor(first / PAGE_SIZE) : 0;
+      PAGED.forEach(f => f()); }},
+      PAGE_SIZES.map(n => h('option', {value: n, selected: n === PAGE_SIZE ? '' : null}, n ? String(n) : 'All')));
+    pager.replaceChildren(
+      h('span', {class: 'pg-range'}, `${(from + 1).toLocaleString()}–${(from + shown.length).toLocaleString()} of ` +
+        `${rs.length.toLocaleString()}`),
+      h('span', {class: 'pg-links'}, pages > 1 ? [btn('‹ Previous', page - 1), ...links, btn('Next ›', page + 1)] : []),
+      h('label', {class: 'pg-size'}, 'Rows per page ', sel));
   }
+  PAGED.push(draw);
   draw();
   return wrap;
 }
@@ -740,7 +790,7 @@ function edgeSection(id, key, list) {
            h('h3', {}, `${SECTION[key] || key} (${list.length})`),
            h('div', {class: 'note'}, D.schema.edges[type] || ''),
            single ? h('div', {class: 'note'}, 'Every row: ', nodeLink(otherOf(list[0]))) : null,
-           table(cols, list, {limit: 100}));
+           table(cols, list));
 }
 
 // ── facts of a node ───────────────────────────────────────────────────────
@@ -906,7 +956,7 @@ function genesPage() {
       {label: 'Function', get: g => g.a.theme},
       {label: 'Related conditions', num: true, get: g => g.a.n_related_conditions},
       {label: 'Text-mined publications', num: true, get: g => g.a.n_text_mined_publications}],
-      rows, {sort: all ? 4 : 1, dir: all ? -1 : 1, limit: 300, tools: h('span', {},
+      rows, {sort: all ? 4 : 1, dir: all ? -1 : 1, tools: h('span', {},
         h('button', {class: 'btn' + (all ? '' : ' on'), onclick: () => { all = false; draw(); }}, `${S} genes`), ' ',
         h('button', {class: 'btn' + (all ? ' on' : ''), onclick: () => { all = true; draw(); }}, 'Every gene'))}));
   };
@@ -1096,7 +1146,7 @@ function conditionsPage(selected) {
               cell: c => c.a.shared_regions || ''},
              {label: 'GWAS studies', num: true, get: c => c.a.n_gwas_studies},
              {label: 'East Asian GWAS', num: true, get: c => c.a.n_eas_studies},
-             {label: 'Curated genes', num: true, get: c => c.a.n_mendelian_genes}], rows, {sort: 1, limit: 200}));
+             {label: 'Curated genes', num: true, get: c => c.a.n_mendelian_genes}], rows, {sort: 1}));
   };
   draw();
   return [h('h2', {}, 'Related conditions'), h('p', {class: 'lead'}, `Every condition related to ${S}, with the ` +
@@ -1153,7 +1203,7 @@ function studiesPage() {
        cell: p => h('span', {}, genesOf(p).map(g => h('a', {class: 'chip', href: href(g)}, N.get(g).label)))},
       {label: 'Readers', get: p => p.a.agreement, cell: p => agree(p.a.agreement)},
       {label: 'Title', get: p => p.a.title}, {label: 'Source', get: p => p.id, cell: p => pmid(p.id.split(':')[1])}],
-      rows, {sort: 0, limit: 200, tools: h('span', {}, ['all', 'Japanese', 'East Asian', 'Not East Asian'].map(x =>
+      rows, {sort: 0, tools: h('span', {}, ['all', 'Japanese', 'East Asian', 'Not East Asian'].map(x =>
         h('button', {class: 'btn' + (place === x ? ' on' : ''), onclick: () => { place = x; draw(); }},
           x === 'all' ? 'All places' : x)), ' ',
         h('select', {onchange: e => { design = e.target.value; draw(); }},
@@ -1445,7 +1495,7 @@ function buildPage() {
     ...D.choices.map(g => h('details', {class: 'cmap-all'}, h('summary', {}, `${g.name} (${g.items.length})`),
       table([{label: 'Rule', get: r => r.item}, {label: 'Value', get: r => r.value}, {label: 'Basis', get: r => r.basis},
              {label: 'References', cell: r => h('span', {}, r.refs.map(([tt, u], k) =>
-               h('span', {}, k ? '; ' : '', u ? ext(u, tt) : tt)))}], g.items, {filter: false, limit: 200})))));
+               h('span', {}, k ? '; ' : '', u ? ext(u, tt) : tt)))}], g.items, {filter: false})))));
   return out;
 }
 // the share of the decisive items both readers gave the same answer (studies, findings, methods, relations)
@@ -1572,7 +1622,7 @@ function modelSections() {
         {label: 'Source', get: r => r.pm, cell: r => pmid(r.pm)}, {label: 'Pass', get: r => r.ps},
         {label: 'Item', get: r => r.item}, {label: 'Reader A', get: r => r.a}, {label: 'Reader B', get: r => r.b},
         {label: 'Final', get: r => r.fin}, {label: 'Decision', get: r => r.dec, cell: r => h('span', {class: 'quote'}, r.dec)}],
-        rows, {limit: 100, tools: h('span', {}, ['all'].concat(passes).map(x => h('button', {class: 'btn' + (pass === x ?
+        rows, {tools: h('span', {}, ['all'].concat(passes).map(x => h('button', {class: 'btn' + (pass === x ?
           ' on' : ''), onclick: () => { pass = x; draw(); }}, x === 'all' ? 'Every pass' : x)))}));
     };
     draw();
@@ -1585,7 +1635,7 @@ function modelSections() {
       h('div', {class: 'note'}, 'A rule, not a reader: the result label of a finding that the wording of its own ' +
         'sentence contradicts. The finding is kept and marked.'),
       table([{label: 'Source', get: r => r[0], cell: r => pmid(r[0])}, {label: 'Finding', get: r => r[5]},
-             {label: 'Why', get: r => r[6]}], flagged, {limit: 100}));
+             {label: 'Why', get: r => r[6]}], flagged));
   }
   return out;
 }
@@ -1596,15 +1646,32 @@ const TABS = [['overview', 'Overview'], ['genes', 'Genes'], ['conditions', 'Rela
               ['build', 'How it is built']];
 const PAGES = {overview, genes: genesPage, conditions: conditionsPage, regions: regionsPage, studies: studiesPage,
                curation: curationPage, build: buildPage};
+// the tab: the disease first, then what the page shows (a list, or one node by its kind), so that the open tabs of
+// several diseases and pages tell apart even when the browser shortens their titles; its icon is the disease's mark
+const TITLE_KIND = {...TYPE_NAME, region: 'GWAS region'};
+function pageTitle(hash, tab) {
+  if (LIST_PAGE) return (TABS.find(x => x[0] === (tab || 'overview')) || [0, 'Overview'])[1];
+  const n = N.get(hash.slice(2));
+  if (!n) return 'Not found';
+  const label = n.type === 'region' ? n.label.replace(/ region$/, '') : n.type === 'publication' &&
+    n.id.startsWith('PMID:') ? `${n.label} (PMID ${n.id.slice(5)})` : n.label;
+  return `${TITLE_KIND[n.type] || n.type}: ${label}`;
+}
+const MARK = document.getElementById('mark');
+MARK.textContent = D.disease.mark; MARK.style.background = D.disease.color; MARK.title = D.disease.Name;
+document.head.append(h('link', {rel: 'icon', href: 'data:image/svg+xml,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="' +
+  D.disease.color + '"/><text x="16" y="21.5" font-family="Arial,Helvetica,sans-serif" font-size="14" ' +
+  'font-weight="700" fill="#fff" text-anchor="middle">' + D.disease.mark + '</text></svg>')}));
 function render() {
   const hash = decodeURIComponent(location.hash.slice(2) || 'overview');
   const main = document.getElementById('main');
+  PAGED.length = 0;
   let tab = hash.split('/')[0];
   LIST_PAGE = !hash.startsWith('n/');
   if (!LIST_PAGE) { main.replaceChildren(nodePage(hash.slice(2))); tab = ''; }
   else main.replaceChildren(...[].concat((PAGES[tab] || overview)(hash.split('/').slice(1).join('/'))));
-  document.title = (LIST_PAGE ? (TABS.find(x => x[0] === (tab || 'overview')) || [0, 'Overview'])[1] :
-    (N.get(hash.slice(2)) || {label: 'Not found'}).label) + ' · ' + S + ' knowledge graph';
+  document.title = `${S} · ${pageTitle(hash, tab)} — DiseaseLens`;
   document.querySelectorAll('nav a').forEach(a => a.classList.toggle('on', a.dataset.tab === tab));
   window.scrollTo(0, 0);
   requestAnimationFrame(fitHints);
@@ -1650,9 +1717,10 @@ search.addEventListener('keydown', e => {
 search.addEventListener('blur', () => setTimeout(() => { sug.style.display = 'none'; }, 150));
 window.addEventListener('hashchange', render);
 window.addEventListener('resize', fitHints);
-// printing shows every rule of the condition map
-window.addEventListener('beforeprint', () => document.querySelectorAll('details.cmap-all, details.bd')
-  .forEach(d => { d.open = true; }));
+// printing shows every rule of the condition map and every row of every table
+window.addEventListener('beforeprint', () => { document.querySelectorAll('details.cmap-all, details.bd')
+  .forEach(d => { d.open = true; }); PRINTING = true; PAGED.forEach(f => f()); });
+window.addEventListener('afterprint', () => { PRINTING = false; PAGED.forEach(f => f()); });
 render();
 </script>
 </body>

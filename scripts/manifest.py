@@ -36,7 +36,7 @@ import urllib.parse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ot_common import DATA_NOTE, REPOSITORY, MISSING, csv_list, load_profile, read_tsv  # noqa: E402
+from ot_common import REPOSITORY, MISSING, csv_list, load_profile, read_tsv  # noqa: E402
 
 # the paths of latest.json, in the order written (relative to results/<key>/)
 PRODUCTS = ['dir', 'index', 'viewer', 'knowledge', 'graph', 'database', 'workbook']
@@ -278,97 +278,100 @@ def project(root, out_index, out_readme, given=None, out_html=None):
 
 
 def index_html(rows, v):
-    """The project index as one page in the viewer's style: every link relative to the results root, where the page
-    is written, so that the folder works from disk (file://), copied or unzipped."""
+    """The project index as one page in the viewer's style: a row per disease (its snapshot, its headline counts, its
+    viewer and other products), every link relative to the results root, where the page is written, so that the
+    folder works from disk (file://), copied or unzipped. Every link opens a new tab, so that the index stays open."""
     e = html.escape
 
-    def link(r, k, text):
+    def link(r, k, text, cls=None):
         p = r['paths'].get(k)
-        return f'<a href="{e(urllib.parse.quote(p))}" target="_blank" rel="noopener">{text}</a>' if p else ''
+        return (f'<a{f" class={chr(34)}{cls}{chr(34)}" if cls else ""} href="{e(urllib.parse.quote(p))}" '
+                f'target="_blank" rel="noopener">{text}</a>') if p else ''
     body = []
     for r in rows:
         c, n = r['counts'], len(r['snapshots'])
-        name = e(r['name']) if r['name'] and r['name'].lower() != r['short'].lower() else ''
-        lv = c.get('genes_by_level') or {}
-        title = ', '.join(f'level {k}: {lv[k]}' for k in sorted(lv, key=int)) if lv else ''
+        short = r['short'] or r['key']
+        name = r['name'] if r['name'] and r['name'].lower() != short.lower() else ''
+        name = name[:1].upper() + name[1:]
         ot = (f'<a class="ext" href="https://platform.opentargets.org/disease/{e(r["id"])}" target="_blank" '
-              f'rel="noopener">{e(r["id"])}</a>'
-              if r['id'] else MISSING)
-        opens = ' · '.join(x for x in (link(r, 'viewer', 'Viewer'), link(r, 'workbook', 'Workbook'),
-                                       link(r, 'knowledge', 'Knowledge base'), link(r, 'index', 'Snapshot README'))
-                           if x)
-        body.append(f'<tr><td><b>{e(r["short"] or r["key"])}</b><div class="sub">{name}</div></td><td>{ot}</td>'
-                    f'<td>{e(v(r["snapshot"]))}<div class="sub">{n} snapshot{"s" if n != 1 else ""}</div></td>'
-                    f'<td>{e(v(r["release"]))}</td><td class="num" title="{e(title)}">{e(v(c.get("genes")))}</td>'
-                    f'<td class="num">{e(v(c.get("genetic_studies")))}</td>'
+              f'rel="noopener">{e(r["id"])}</a>' if r['id'] else MISSING)
+        lv = c.get('genes_by_level') or {}
+        title = ', '.join(f'level {k}: {lv[k]}' for k in sorted(lv, key=int))
+        files = ' · '.join(x for x in (link(r, 'workbook', 'Workbook'), link(r, 'knowledge', 'Knowledge base'),
+                                       link(r, 'index', 'README')) if x)
+        facts = ' · '.join(f'<span>{x}</span>' for x in [ot, f'snapshot {e(v(r["snapshot"]))}',
+                                                          f'Open Targets {e(v(r["release"]))}']
+                           + ([f'{n} snapshots'] if n > 1 else []))
+        body.append(f'<tr><td class="dis"><div class="dz">{e(short)}</div><div class="name">{e(name)}</div>'
+                    f'<div class="sub">{facts}</div></td>'
+                    f'<td class="num"{f" title={chr(34)}{e(title)}{chr(34)}" if title else ""}>'
+                    f'{e(v(c.get("genes")))}</td><td class="num">{e(v(c.get("genetic_studies")))}</td>'
                     f'<td class="num">{e(v(c.get("conditions")))}</td><td class="num">{e(v(c.get("regions")))}</td>'
-                    f'<td class="open">{opens}</td></tr>')
-    table = ('<div class="wrap"><table><thead><tr><th>Disease</th><th>Open Targets ID</th><th>Newest snapshot</th>'
-             '<th>Open Targets release</th><th class="num">Genes on the evidence ladder</th>'
-             '<th class="num">Genetic studies</th><th class="num">Related conditions</th>'
-             '<th class="num">GWAS regions</th><th>Open</th></tr></thead><tbody>' + ''.join(body) +
-             '</tbody></table></div>') if rows else \
-        '<p class="lead">No disease has a snapshot under this folder yet.</p>'
-    count = f'{len(rows)} disease{"s" if len(rows) != 1 else ""}'
-    return INDEX_HTML.replace('__COUNT__', count).replace('__TABLE__', table).replace(
-        '__REPO__', e(REPOSITORY)).replace('__DATA_NOTE__', e(DATA_NOTE))
+                    f'<td class="open">{link(r, "viewer", "Open viewer", "btn")}<div class="files">{files}</div>'
+                    '</td></tr>')
+    table = ('<div class="panel"><table><thead><tr><th>Disease</th><th class="num">Genes on the ladder</th><th class="num">Genetic studies</th>'
+             '<th class="num">Related conditions</th><th class="num">GWAS regions</th><th></th></tr></thead><tbody>'
+             + ''.join(body) + '</tbody></table></div>') if rows else \
+        '<p class="empty">No disease has a snapshot under this folder yet.</p>'
+    return INDEX_HTML.replace('__TABLE__', table).replace('__REPO__', e(REPOSITORY))
 
 
-INDEX_HTML = '''<!doctype html>
+INDEX_HTML = """<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DiseaseLens results</title>
+<title>DiseaseLens</title>
 <style>
-:root { --bg: #ffffff; --panel: #f6f7f9; --line: #d9dde3; --ink: #1f2328; --ink2: #57606a; --link: #1f4e79;
-        --head: #1f3b5f; --chip: #eef2f7; }
+:root { --panel: #f6f7f9; --line: #d9dde3; --ink: #1f2328; --ink2: #57606a; --link: #1f4e79; --head: #1f3b5f; }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 -apple-system, "Segoe UI", Roboto,
+body { margin: 0; background: #fff; color: var(--ink); font: 14px/1.45 -apple-system, "Segoe UI", Roboto,
        "Helvetica Neue", Arial, "Noto Sans", sans-serif; }
-header { background: var(--head); color: #fff; padding: 12px 20px; display: flex; flex-wrap: wrap; gap: 6px 24px;
-         align-items: baseline; }
-header h1 { font-size: 18px; margin: 0; font-weight: 600; letter-spacing: .2px; }
-header .meta { font-size: 12px; opacity: .85; }
-main { padding: 18px 20px 40px; max-width: 1400px; margin: 0 auto; }
-p.lead { color: var(--ink2); margin: 0 0 14px; max-width: 980px; }
-a { color: var(--link); } a.ext { white-space: nowrap; } a.ext::after { content: " \\2197"; font-size: 11px; }
-.wrap { overflow-x: auto; }
-table { border-collapse: collapse; width: 100%; font-size: 13px; }
-th, td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
-th { background: var(--panel); font-weight: 600; }
+header { background: var(--head); color: #fff; padding: 14px 24px; }
+header h1 { font-size: 19px; margin: 0; font-weight: 650; letter-spacing: .2px; }
+main { padding: 22px 24px 32px; max-width: 1280px; margin: 0 auto; }
+a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+a.ext { white-space: nowrap; } a.ext::after { content: " \\2197"; font-size: 11px; }
+.panel { border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { padding: 10px 12px; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--line); }
+th { background: var(--panel); font-weight: 600; font-size: 12.5px; color: var(--ink2); vertical-align: bottom; }
+th.num { white-space: nowrap; }
+td.dis { min-width: 240px; }
+.name { color: var(--ink); font-size: 13px; margin-top: 1px; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover td { background: #f8fafc; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
-.sub { color: var(--ink2); font-size: 12px; }
-td.open { white-space: nowrap; }
-footer { color: var(--ink2); font-size: 12px; border-top: 1px solid var(--line); margin-top: 22px; padding-top: 8px; }
-footer p { margin: 3px 0; max-width: 980px; }
+td.num { font-size: 15px; font-weight: 600; color: var(--head); }
+.dz { font-weight: 650; font-size: 15px; color: var(--head); }
+.sub { color: var(--ink2); font-size: 12px; margin-top: 3px; } .sub span { white-space: nowrap; }
+td.open { text-align: right; }
+a.btn { display: inline-block; border: 1px solid var(--head); color: var(--head); border-radius: 4px; padding: 4px 12px;
+        font-weight: 600; font-size: 12.5px; }
+a.btn:hover { background: var(--head); color: #fff; text-decoration: none; }
+.files { font-size: 12px; margin-top: 5px; color: var(--ink2); white-space: nowrap; }
+.empty { color: var(--ink2); }
+footer { color: var(--ink2); font-size: 12px; margin-top: 18px; }
+/* a narrow window: the count headers wrap, so that the disease keeps its width */
+@media (max-width: 1150px) { th.num { white-space: normal; } main { padding: 18px 14px 28px; } }
 @media print {
   header { background: none; color: var(--ink); padding: 0 0 4px; border-bottom: 2px solid var(--head); }
   main { padding: 8px 0 0; max-width: none; }
-  .wrap { overflow: visible; }
-  a { color: inherit; text-decoration: none; }
-  a.ext::after { content: ""; }
+  .panel { overflow: visible; border: 0; }
+  a { color: inherit; } a.ext::after { content: ""; } a.btn { border: 0; padding: 0; }
   tr { break-inside: avoid; page-break-inside: avoid; }
 }
 </style>
 </head>
 <body>
-<header><h1>DiseaseLens results</h1><div class="meta">__COUNT__</div></header>
+<header><h1>DiseaseLens</h1></header>
 <main>
-<p class="lead">One knowledge graph per disease, each a dated snapshot of Open Targets and PubMed. Open the viewer in
-any browser (offline), the workbook in a spreadsheet program, the knowledge base as Markdown text. Every link is
-relative to this folder, so it also works from a copy or an unzipped archive.</p>
 __TABLE__
-<footer>
-<p><b>How to cite</b> a graph: DiseaseLens, &lt;disease&gt; knowledge graph, snapshot &lt;date&gt;, Open Targets
-&lt;release&gt;, __REPO__ (the cover sheet of each workbook gives the exact line).</p>
-<p><b>Data:</b> __DATA_NOTE__</p>
-<p>Generated by <a class="ext" href="__REPO__" target="_blank" rel="noopener">DiseaseLens</a>; do not edit by hand.</p>
-</footer>
+<footer>Generated by <a class="ext" href="__REPO__" target="_blank" rel="noopener">DiseaseLens</a></footer>
 </main>
 </body>
 </html>
-'''
+"""
 
 
 if __name__ == '__main__':

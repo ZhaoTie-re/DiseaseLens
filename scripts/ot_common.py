@@ -12,6 +12,7 @@ import datetime as dt
 import http.client
 import math
 import gzip
+import hashlib
 import json
 import re
 import time
@@ -28,6 +29,15 @@ MISSING = '—'   # em dash: "not available / not applicable"
 REPOSITORY = 'https://github.com/ZhaoTie-re/DiseaseLens'
 DATA_NOTE = ("Open Targets data are CC0; quotes and abstracts remain under their publishers' copyright, each linked to "
              'its PubMed record.')
+
+
+def disease_badge(short, did):
+    """The mark and the color of a disease, on its viewer's browser-tab icon and in its header, so that the tabs of
+    several diseases tell apart: the first two letters or digits of the short name, on a dark hue derived from the Open Targets ID (stable across
+    runs, white text readable on it)."""
+    mark = ''.join(ch for ch in short if ch.isalnum())[:2].upper() or '?'
+    hue = int(hashlib.sha1(did.encode()).hexdigest(), 16) % 360
+    return mark, f'hsl({hue}, 55%, 32%)'
 
 
 def citation(short, snapshot, release):

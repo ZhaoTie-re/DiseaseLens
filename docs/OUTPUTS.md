@@ -7,7 +7,7 @@ of a snapshot.
 
 | Path | Content |
 |---|---|
-| `results/index.html`, `results/index.json`, `results/README.md` | every disease of the results folder: its newest snapshot, release and headline counts, with links to its viewer, workbooks and knowledge base (paths relative to `results/`) |
+| `results/index.html`, `results/index.json`, `results/README.md` | every disease of the results folder: its newest snapshot, release and headline counts, with links to its viewer, workbooks and knowledge base (paths relative to `results/`). The page is one table, a row per disease: its names, Open Targets ID, snapshot and release; its genes on the evidence ladder, genetic studies, related conditions and GWAS regions; its viewer and other products. Every link opens a new tab |
 | `results/<key>/latest.json` | the disease's newest complete snapshot and each of its products (`snapshot`, `dir`, `index`, `viewer`, `knowledge`, `graph`, `database`, `workbook`, `release`, all `snapshots`, `disease`, `counts`); paths relative to `results/<key>/` |
 | `results/<key>/snapshots/<date>/` | one snapshot (below) |
 | `results/_runs/` | the trace, report and timeline of the last run (they hold paths of the machine that ran it) |
@@ -146,4 +146,10 @@ Cells with a note hold the source passage, or the variant as written.
 - Every identifier in a text is a link, the text unchanged: a GWAS study (GCST…, FINNGEN_…, UKB_PPP_…) to its page in
   the graph, else in Open Targets; an rsID to dbSNP; a PMID to its page in the graph, else PubMed. (A workbook cell
   holds one link, so the workbook links each row's source instead.)
+- Long tables come in pages: 25 rows by default, or 10, 50, 100 or all (one choice for the viewer, kept in the
+  browser); filtering and sorting cover every row, and a printed page shows every row.
+- A gene, condition or study clicked in a list opens in a new tab, so the list keeps its filter and place; on a
+  node's page, links stay in the tab (Back returns). The tab's title names the disease first, then the page or the
+  node and its kind (`CTEPH · Genes`, `CTEPH · Gene: FGG`), and its icon carries the disease's mark, so the tabs of
+  several diseases tell apart.
 - Any page prints, or saves as PDF, without the navigation.
