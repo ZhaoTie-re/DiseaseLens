@@ -251,13 +251,43 @@ MESH_COHORT = {'Cohort Studies', 'Longitudinal Studies', 'Follow-Up Studies', 'P
                'Retrospective Studies', 'Case-Control Studies', 'Registries'}
 
 
-def relation_design(record, words=''):
-    """The design class (RELATION_DESIGNS) of the record behind a clinical relation."""
+# words of a condition name that do not tell one condition from another in a title: kinds, levels, time and severity,
+# and short connecting words
+GENERIC_WORDS = {'disease', 'diseases', 'disorder', 'disorders', 'syndrome', 'syndromes', 'condition', 'conditions',
+                 'measurement', 'level', 'levels', 'trait', 'traits', 'use', 'exposure', 'history', 'acute', 'chronic',
+                 'severe', 'recurrent', 'primary', 'secondary', 'idiopathic', 'elevated', 'high', 'low', 'the', 'and',
+                 'with', 'for', 'after', 'other'}
+
+
+def title_names(condition, title, own=()):
+    """The title of a publication names the condition: a word of the condition's name (three letters or more, a plural
+    allowed) that is neither a word of the disease's own names (own) nor a generic word (GENERIC_WORDS) occurs in it
+    as a whole word. A name with no such word cannot be told apart, and counts as named."""
+    def words(t):
+        return {w for w in re.split(r'[^a-z0-9]+', us_english(str(t).lower())) if len(w) >= 3}
+    key = words(condition) - GENERIC_WORDS - set(own)
+    tw = words(title)
+    return not key or any(w in tw or w + 's' in tw or (w.endswith('s') and w[:-1] in tw) for w in key)
+
+
+# a title that is about the related conditions of a disease in general: its risk factors, causes, comorbidities, or
+# what it is associated with ('Drug-associated pulmonary arterial hypertension'; not 'Association of a variant with')
+RELATIONS_TITLE = re.compile(r'risk factors?|causes|a?etiolog|comorbidit|(?<![a-z])associated(?![a-z])', re.I)
+
+
+def about_relation(condition, title, own=()):
+    """A publication is about the relation of a condition to the disease: its title names the condition
+    (title_names), or is about the disease's related conditions in general (RELATIONS_TITLE)."""
+    return title_names(condition, title, own) or bool(RELATIONS_TITLE.search(str(title)))
+
+
+def relation_design(record, words='', about=True):
+    """The design class (RELATION_DESIGNS) of the record behind a clinical relation. A guideline, meta-analysis or
+    systematic review counts as one only when it is about the relation (about_relation); otherwise the relation is a
+    statement of its background, and other."""
     pt, mesh, w = set(record.get('pub_types') or []), set(record.get('mesh') or []), str(words).lower()
-    if pt & PT_GUIDELINE:
-        return RELATION_DESIGNS[0]
-    if pt & PT_META:
-        return RELATION_DESIGNS[1]
+    if pt & (PT_GUIDELINE | PT_META):
+        return RELATION_DESIGNS[0 if pt & PT_GUIDELINE else 1] if about else RELATION_DESIGNS[5]
     if 'Case Reports' in pt:
         return RELATION_DESIGNS[4]
     if mesh & MESH_COHORT:

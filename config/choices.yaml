@@ -262,7 +262,11 @@ groups:
     basis_type: design
     basis: From the PubMed publication types and MeSH design headings as NLM indexes each record, so that the design
       is not the reading of a model; a case report stays one whatever else it is indexed with. The readers' design
-      words count only for a record NLM has not indexed yet. The evidence matrix of the viewer shows the best design
+      words count only for a record NLM has not indexed yet. A guideline, meta-analysis or systematic review counts as
+      one only when it is about the relation, its title naming the condition or the disease's risk factors, causes,
+      comorbidities or associated conditions; otherwise the quoted sentence is its background, and the relation is
+      other (decided with the user, 2026-10-21; a bosentan meta-analysis that mentions pulmonary embolism in its
+      introduction is not meta-analytic evidence for it). The evidence matrix of the viewer shows the best design
       among the publications that relate a condition; it is shown, not used to grade or to filter.
     used_in: viewer (related conditions)
   - key: joined_names

@@ -200,9 +200,10 @@ every disease; a gene takes its strongest level.
 The viewer has one tab per question: **Overview** (the ladder by gene function), **Genes**, **Related conditions**
 (an evidence matrix: one row per condition, its publications, best design, direction, shared GWAS regions and own
 genetics), **GWAS regions**, **Genetic studies** (design, place, sample sizes, methods, findings), **Curation** (what
-was left out or corrected), and **How it is built**, which answers how the graph was built: every step and rule with
-this disease's counts, the part of the language models and every disagreement between the two readers with its
-decision, each section reachable by its own link (`#/build/relations`). Every gene,
+was left out or corrected), and **How it is built**, the methods of the graph as a numbered document in the order of
+the build: each section with its procedure, its rules (value and basis) and this disease's counts, the part of the
+language models and every disagreement between the two readers with its decision, each section reachable by its own
+link (`#/build/relations`). Every gene,
 condition, region and study has its own page, with each edge and its source link. A link from a list opens in a new
 tab; the browser tab names the disease first.
 

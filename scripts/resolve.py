@@ -57,7 +57,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from llm import in_text  # noqa: E402
 from ot_common import (SHARED_SIGNAL, disease_regions, gql, load_json, load_profile, log, relates,  # noqa: E402
-                       relation_design, shared_relations,
+                       about_relation, relation_design, shared_relations,
                        write_tsv)
 
 DISEASES = '''query($ids: [String!]!) { diseases(efoIds: $ids) { id name description parents { id name }
@@ -137,6 +137,8 @@ def main():
                 shutil.copyfile(seed_path / src, out / dst)
         seed_path = seed_path / 'extracted_relations.yaml'
     seed = yaml.safe_load(seed_path.read_text()) if seed_path else (P.seed or {'conditions': []})
+    # the words of the disease's own names: a title that names only the disease does not name a related condition
+    own_words = {w for t in (P.name, P.short) for w in re.split(r'[^a-z0-9]+', str(t).lower()) if len(w) >= 3}
     extracted = seed.get('source') == 'extracted'
     pub = {r['pmid']: r for r in load_json(a.seed_pubmed)['records']}
 
@@ -159,7 +161,8 @@ def main():
                 continue
             rel.append({'node_id': node, 'evidence_type': 'clinical', 'relation': e.get('direction', ''),
                         'detail': e['statement'], 'quote': e['quote'], 'design': e.get('design', ''),
-                        'design_class': relation_design(r, e.get('design', '')),
+                        'design_class': relation_design(r, e.get('design', ''),
+                                                        about_relation(c['name'], r.get('title', ''), own_words)),
                         'population': e.get('population', ''), 'east_asian': bool(e.get('east_asian')),
                         'pmid': str(e['pmid']), 'citation': f'{r["first_author"]} {r["year"]}, {r["journal"]}',
                         'strength': '', 'loci': '', 'agreement': e.get('agreement', 'curated')})
