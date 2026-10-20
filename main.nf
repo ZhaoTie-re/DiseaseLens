@@ -664,7 +664,7 @@ process VIEWER {
     publishDir path: { "${d.out_dir}" }, mode: 'copy'
 
     input:
-    tuple val(d), path(profile), path(graph), path(curated), path(tables), path(summaries), path(summaries_json), path(figures)
+    tuple val(d), path(profile), path(graph), path(curated), path(tables), path(summaries), path(summaries_json)
     val run_params
     path script
     path lib
@@ -681,7 +681,7 @@ process VIEWER {
 ${rp}
 JSON
     ${params.python} ${script} --profile ${profile} --graph ${graph} --curated ${curated} --tables ${tables} \\
-        --summaries ${summaries} --figures ${figures} --run-params run_params.json --out ${d.key}_knowledge_graph.html
+        --summaries ${summaries} --run-params run_params.json --out ${d.key}_knowledge_graph.html
     """
 }
 
@@ -862,8 +862,8 @@ workflow {
     WRITE_TABLE(keyed(prof).join(tables).join(curated).join(graph).join(summaries).join(changes).join(knowledge)
                     .map { k, p, t, cu, g, su, sj, ch, cj, km, kj -> tuple(spec[k], p, t, cu, g, su, sj, ch, cj, km, kj) },
                 runParams, script_file('write_table.py'), lib)
-    VIEWER(keyed(prof).join(graph).join(curated).join(tables).join(summaries).join(keyed(FIGURES.out.dir))
-               .map { k, p, g, cu, t, su, sj, fi -> tuple(spec[k], p, g, cu, t, su, sj, fi) },
+    VIEWER(keyed(prof).join(graph).join(curated).join(tables).join(summaries)
+               .map { k, p, g, cu, t, su, sj -> tuple(spec[k], p, g, cu, t, su, sj) },
            runParams, script_file('build_viewer.py'), lib)
 
     def scripts = ['ot_common.py', 'llm.py', 'profile.py', 'fetch.py', 'pubmed.py', 'relations.py', 'resolve.py',

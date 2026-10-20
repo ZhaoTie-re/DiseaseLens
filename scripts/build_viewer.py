@@ -8,27 +8,27 @@
 #                          them
 #             Genes        the genes of the disease by level (or every gene),
 #                          filterable
-#             Conditions   the related conditions: an interactive map (the
-#                          figure condition_map: each condition in the sector
-#                          of its category, the line showing the kind of
-#                          evidence; hover for its evidence, click to open it,
-#                          a category to select it), with what it shows and leaves
-#                          out, above the table, which shows the selection
+#             Conditions   the related conditions: an evidence matrix (one row
+#                          per condition, grouped by category; publications,
+#                          best design, direction, East Asian evidence, ontology
+#                          relation, each shared GWAS region, its own genetics),
+#                          filtered by category or name
 #             Regions      the genome-wide significant GWAS regions of the
 #                          disease (published, or from Open Targets); a sentence
 #                          when there is none
 #             Studies      the genetic studies of the disease, by place and
 #                          design, with the agreement of the model readers
 #             Curation     what was left out or corrected, and why
-#             How it is built  the general rules, each followed by how it
-#                          applies to this disease: the sources (databases), how
-#                          the databases, the language models and the rules are
-#                          combined, the associations (edge types: where each comes
-#                          from, by which rule), the categories and levels, the
-#                          language models (the three models, one reading from
-#                          record to graph, where they are used and how each answer
-#                          is checked, how often the readers agreed, every disputed
-#                          item), and every rule with its value and basis
+#             How it is built  the one place that answers how the graph is
+#                          built: the general rules, each followed by how it
+#                          applies to this disease, at a glance, step by step,
+#                          and in sections reachable as #/build/<section>: the
+#                          sources, the GWAS regions, the genetic studies, the
+#                          evidence ladder and gene functions, the related
+#                          conditions (routes, steps and the models' part,
+#                          categories, the evidence matrix, what is left out),
+#                          the associations (edge types), the language models,
+#                          snapshots and files, and every rule with its basis
 #           Every node has its own page (#/n/<id>): its facts, a diagram of its
 #           neighbors, and every edge with its evidence and source link
 #           (PubMed, Open Targets, dbSNP), so that each statement can be traced
@@ -40,7 +40,6 @@
 # Inputs  : the profile, 05.graph (nodes_*.tsv, edges_*.tsv, schema.json with
 #           the ladder), 03.curated, 04.tables/literature.tsv (one sentence per
 #           text-mined link), 06.summaries (grounded summaries only),
-#           09.figures/condition_map.json (the condition map as drawn)
 # Outputs : <key>_knowledge_graph.html
 # ---------------------------------------------------------------------------
 import argparse
@@ -51,7 +50,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ot_common import (EAS_COUNTRIES, NO_LEVEL, OTHER_GENES, RELATION_DESIGNS, SHARED_SIGNAL,  # noqa: E402
-                       disease_badge, load_choices, load_glosses, load_profile, load_status, log, not_regions_of,
+                       category_colors, disease_badge, load_choices, load_glosses, load_profile, load_status, log, not_regions_of,
                        not_regions_sentence, read_tsv, relates)
 
 WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve']
@@ -123,7 +122,8 @@ def condition_evidence(T, G):
     """What the evidence matrix of the conditions page shows of each related condition: the publications of its
     clinical evidence that relate it, the best design class among them (RELATION_DESIGNS, by its index), the
     directions, whether a study found no association, East Asian evidence of the relation, its place in the ontology,
-    and the regions of the disease it shares a signal with, by method ('c' colocalization, 'o' lead-variant overlap)."""
+    the regions of the disease it shares a signal with, by method ('c' colocalization, 'o' lead-variant overlap), and
+    why its own genetics were not read ('nf': none, shared, broad, cooccurrence, gwas; '' when they were)."""
     rel = read_tsv(T / 'relations.tsv')
     if 'design_class' not in rel:
         rel['design_class'] = ''
@@ -139,6 +139,15 @@ def condition_evidence(T, G):
                   'dirs': sorted(set(cl.relation)), 'contrary': any(c and not o for c, o in zip(clin, ok)),
                   'ea': any(o and str(x) == 'True' for o, x in zip(ok, g.east_asian)),
                   'onto': (onto[0].split(' ')[0] if onto else ''), 'onto_text': '; '.join(onto)}
+    # why its own genetics were not read: no Open Targets entry, or (coloc_only) the reason resolve.py wrote
+    cond = read_tsv(T / 'conditions.tsv', ['node_id', 'genetics', 'genetics_note'])
+    for x in cond.itertuples():
+        note = x.genetics_note
+        code = ('none' if x.genetics == 'none' else '' if x.genetics != 'coloc_only' else
+                'broad' if 'broad class' in note else 'gwas' if 'GWAS studies, more than' in note else
+                'cooccurrence' if 'publication' in note else 'shared')
+        out.setdefault(x.node_id, {'pubs': 0, 'design': None, 'dirs': [], 'contrary': False, 'ea': False,
+                                   'onto': '', 'onto_text': ''})['nf'] = code
     for x in sh.itertuples():
         r = out.setdefault(x.source, {'pubs': 0, 'design': None, 'dirs': [], 'contrary': False, 'ea': False,
                                       'onto': '', 'onto_text': ''}).setdefault('regions', {})
@@ -191,7 +200,6 @@ def main():
     ap.add_argument('--curated', required=True, help='03.curated')
     ap.add_argument('--tables', required=True, help='04.tables')
     ap.add_argument('--summaries', required=True, help='summaries.tsv')
-    ap.add_argument('--figures', help='09.figures (its condition_map.json; without it, no condition map)')
     ap.add_argument('--run-params', required=True, help='the parameters of this run (JSON): the values of the rules')
     ap.add_argument('--out', required=True, help='<key>_knowledge_graph.html')
     a = ap.parse_args()
@@ -229,8 +237,6 @@ def main():
     cur = json.loads((Q / 'curation.json').read_text())
     lg = read_tsv(Q / 'curation_log.tsv', ['step', 'item', 'rule', 'before', 'after'])
     summ = read_tsv(a.summaries, ['kind', 'grounded', 'title', 'summary', 'problems', 'check'])
-    cmap = Path(a.figures or '.') / 'condition_map.json'
-    cmap = json.loads(cmap.read_text()) if a.figures and cmap.exists() else None
     run_params = json.loads(Path(a.run_params).read_text())
     choices, _refs = load_choices(P, run_params, T)
     data = {
@@ -246,12 +252,14 @@ def main():
         'category_desc': P.category_desc, 'ontology_category': P.ontology_category,
         'cooccurrence': [c['name'] for c in P.categories if c.get('cooccurrence')],
         'relation_designs': RELATION_DESIGNS, 'cond_evidence': condition_evidence(T, G),
+        'prescreen': P.d.get('prescreen') or {},
+        'design_classes': [c.get('label', c.get('key', '')) for c in (P.curation.get('design_classes') or [])],
         'ontology': {k: P.ontology.get(k, True) for k in ('parents', 'siblings', 'children')}
                     | {'children_of': len(P.ontology.get('children_of') or [])},
         'eas': list(EAS_COUNTRIES),
         # the labels of the region statistics of a published table that only some diseases have
         'region_labels': {'p_pe': cols.get('p_pe') or 'P in the secondary analysis', 'v': cols.get('v') or 'V'},
-        'text': texts(P, regions, ladder, run_params, not_regions), 'condition_map': cmap,
+        'text': texts(P, regions, ladder, run_params, not_regions), 'category_colors': category_colors(P, cats),
         'not_regions': not_regions.to_dict('records'),
         'llm': model_use(P, T, Q, summ), 'params': run_params,
         'choices': [{'name': g['name'], 'items': [{'item': it['item'], 'value': it['value_text'],
@@ -277,7 +285,7 @@ def main():
     title = f'{P.short} knowledge graph'.replace('&', '&amp;').replace('<', '&lt;')
     Path(a.out).write_text(TEMPLATE.replace('__DATA__', blob).replace('__TITLE__', title))
     log(f'viewer: {len(nodes)} nodes, {len(edges)} edges, {len(regions)} regions, '
-        f'condition map: {"yes" if cmap else "no"}, {Path(a.out).stat().st_size / 1e6:.1f} MB')
+        f'{Path(a.out).stat().st_size / 1e6:.1f} MB')
 
 
 TEMPLATE = r'''<!doctype html>
@@ -391,15 +399,6 @@ svg text { font: 11px sans-serif; fill: var(--ink); }
 .legend span { display: inline-flex; gap: 5px; align-items: center; }
 .summary { background: var(--panel); border-left: 3px solid var(--t-theme); padding: 8px 12px; margin: 8px 0;
            font-size: 13px; }
-/* the condition map: hover a condition for its evidence, click to open it; a category selects its conditions */
-.cmap-wrap { position: relative; max-width: 880px; margin: 4px auto 0; }
-.cmap { display: block; width: 100%; height: auto; overflow: visible; }
-.cmap text { font-size: 13px; }
-.cmap .it { cursor: pointer; transition: opacity .15s; }
-.cmap .it.dim { opacity: .15; }
-.cmap .it:hover text { font-weight: 700; }
-.cmap .it:hover line, .cmap .it.hl line { stroke-opacity: 1; }
-.cmap .core { cursor: pointer; }
 .cmap-tip { position: absolute; pointer-events: none; background: #fff; border: 1px solid var(--line);
             box-shadow: 0 4px 14px rgba(0,0,0,.15); border-radius: 5px; padding: 7px 10px; font-size: 12.5px;
             max-width: 320px; display: none; z-index: 5; }
@@ -442,7 +441,31 @@ table.mx td.mx-nf { color: var(--ink2); font-style: italic; text-align: center; 
 table.mx tbody tr:hover td.mx-name { background: var(--hi); }
 .mx-key { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--ink2); margin: 6px 0 2px; }
 .mx-sw { display: inline-block; padding: 0 6px; margin: 0 2px; border-radius: 3px; }
-.guide { font-size: 13px; max-width: 1100px; } .guide h4 { color: var(--head); font-size: 14px; margin: 16px 0 6px; }
+.guide { font-size: 13px; max-width: 1100px; }
+.toc { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 6px 22px; margin: 6px 0 16px;
+  padding: 10px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; font-size: 13px; }
+.toc .toc-h { grid-column: 1 / -1; font-weight: 700; color: var(--head); }
+.toc a { font-weight: 600; } .toc .toc-s { display: block; color: var(--ink2); font-size: 12px; }
+.toc .toc-q a { font-weight: 500; } .toc .toc-h + .toc-q, .toc .toc-q + .toc-h { margin-top: 0; }
+.toc .toc-h:not(:first-child) { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.insh { font-size: 14px; line-height: 1.5; color: var(--ink); border-left: 3px solid var(--head); padding: 2px 0 2px 10px;
+  margin: 2px 0 12px; max-width: 1080px; }
+.fb { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; margin: 6px 0 14px; }
+.fb-box { border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; min-width: 120px; max-width: 190px;
+  background: #fff; }
+.fb-n { font-size: 20px; font-weight: 700; color: var(--head); font-variant-numeric: tabular-nums; }
+.fb-u { font-size: 12px; font-weight: 400; color: var(--ink2); }
+.fb-l { font-size: 12px; line-height: 1.35; margin: 2px 0 4px; } .fb-by .badge { font-size: 10px; margin-right: 2px; }
+.fb-arrow { align-self: center; color: var(--ink2); font-size: 16px; }
+/* the matrix scrolls in its own box: its header and its first column stay in place */
+.mx-scroll { max-height: calc(100vh - 170px); overflow: auto; border: 1px solid var(--line); border-radius: 4px; }
+table.mx thead { position: sticky; top: 0; z-index: 3; }
+table.mx thead th { background: var(--panel); }
+table.mx th.mx-name { z-index: 4; }
+.mx-catl { position: sticky; left: 8px; }
+.mx-notes { display: grid; gap: 3px; font-size: 12.5px; color: var(--ink2); margin: 6px 0 4px; max-width: 1180px; }
+.mx-notes b { color: var(--ink); }
+.mx-tools { display: flex; align-items: center; gap: 12px; margin: 4px 0 6px; } .guide h4 { color: var(--head); font-size: 14px; margin: 16px 0 6px; }
 .guide ul { margin: 4px 0; padding-left: 20px; } .guide li { margin: 3px 0; } .guide .stps { margin-top: 6px; }
 /* the page on how the graph is built: at a glance, step by step, in detail */
 .glance { display: grid; grid-template-columns: 1fr 34px 1fr 34px 1fr; align-items: stretch; margin: 14px 0 8px; }
@@ -476,7 +499,6 @@ details.bd[open] > summary { border-bottom: 1px solid var(--line); border-radius
 details.bd > summary b { color: var(--head); font-size: 14px; }
 .bd-sub { color: var(--ink2); font-size: 12.5px; margin-left: 10px; }
 .bd-body { padding: 8px 14px 12px; }
-.toc { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0 0 6px; font-size: 13px; }
 table.plain th { cursor: default; position: static; }
 table.plain td { font-size: 13px; }
 .stages { padding-left: 22px; max-width: 1080px; font-size: 13px; }
@@ -524,8 +546,8 @@ table.plain td { font-size: 13px; }
   header { background: none; color: var(--ink); padding: 0 0 4px; border-bottom: 2px solid var(--head); }
   header h1 { color: var(--head); }
   header .meta { opacity: 1; color: var(--ink2); }
-  .cmap-wrap { max-width: 16cm; }
   .cmap-all { display: block; } .cmap-all > summary { list-style: none; }
+  .mx-scroll { max-height: none; overflow: visible; border: 0; }
   .cmap-cats .btn { display: inline-flex !important; border: 0; padding: 0 4px; }
   main { padding: 8px 0 0; max-width: none; }
   table { font-size: 8.5pt; }
@@ -1005,9 +1027,8 @@ function regionMatrix() {
   // the traits related only by a shared signal that share one region: not rows, but counted
   const single = sharing.length - rows.length;
   const singleNote = single === 1 ? '1 trait related only by a shared GWAS signal shares one region and is not a ' +
-    'row here (Related conditions page; in the condition map, the gray node).' : single ? `${single} traits related ` +
-    'only by a shared GWAS signal share one region each and are not rows here (Related conditions page; the ' +
-    'condition map shows them as one gray node).' : '';
+    'row here.' : single ? `${single} traits related only by a shared GWAS signal share one region each and are not ` +
+    'rows here.' : '';
   if (!rows.length) {
     return h('div', {class: 'note'}, sharing.length ? `No related condition shares two or more GWAS regions of ${S}, ` +
       `and no clinically related condition shares one. ${singleNote}` : `No related condition shares a GWAS region ` +
@@ -1058,154 +1079,13 @@ function genesPage() {
     'targets (Europe PMC, as Open Targets gives them) and the genes with genetic evidence in a related condition.'), box];
 }
 
-// ── the condition map: the figure condition_map as drawn (09.figures/condition_map.json), interactive ──────
+// ── SVG helpers ──
 const SVGNS = 'http://www.w3.org/2000/svg';
 function svgEl(tag, at, ...kids) {
   const x = document.createElementNS(SVGNS, tag);
   for (const [k, v] of Object.entries(at || {})) if (v !== null && v !== undefined) x.setAttribute(k, v);
   for (const k of kids.flat()) if (k !== null && k !== undefined) x.append(k);
   return x;
-}
-// a label in at most `max` lines of about w characters (the full name is in the tooltip)
-function labelLines(s, w = 30, max = 2) {
-  if (max === 1) return [String(s).length > w + 4 ? String(s).slice(0, w + 3).trimEnd() + '…' : String(s)];
-  const lines = [];
-  for (const word of String(s).split(' ')) {
-    const k = lines.length - 1;
-    if (k >= 0 && (lines[k] + ' ' + word).length <= w) lines[k] += ' ' + word; else lines.push(word);
-  }
-  return lines.length <= 2 ? lines : [lines[0], (lines.slice(1).join(' ')).slice(0, w - 1) + '…'];
-}
-const sectorLabel = (M, c) => (M.sectors.find(s => s.category === c) || {label: c}).label;
-
-function conditionMap(M, focus, pick) {
-  const R = 250, V = 520;                                    // the radius of the nodes; half the view box
-  const xy = (a, r) => [+(r * Math.cos(a)).toFixed(1), +(-r * Math.sin(a)).toFixed(1)];
-  const color = Object.fromEntries(M.sectors.map(s => [s.category, s.color]));
-  // labels fit the room each condition has on the circle (any number of conditions): the angle of one slot (the
-  // figure leaves two empty slots between sectors) at the label radius gives the room across a label; the font
-  // shrinks to it (8 to 13), and a label keeps two lines only where two fit, else one line cut with an ellipsis
-  const nShown = M.items.length + (M.single ? 1 : 0), nGroups = M.sectors.length + (M.single ? 1 : 0);
-  const room = 2 * Math.PI / Math.max(nShown + 2 * nGroups, 1) * 1.17 * R;
-  const fs = Math.max(8, Math.min(13, room / 1.25)), lineMax = room >= 2.3 * fs ? 2 : 1;
-  const svg = svgEl('svg', {viewBox: `${-V} ${-V} ${2 * V} ${2 * V}`, class: 'cmap', role: 'img',
-                            'aria-label': `${M.short} and its related conditions`});
-  // a map of many conditions takes more of the page width (880 to 1300 px)
-  const tip = h('div', {class: 'cmap-tip'}), wrap = h('div', {class: 'cmap-wrap',
-    style: `max-width:${Math.round(Math.min(1300, Math.max(880, 880 + (nShown - 40) * 9)))}px`}, svg, tip);
-  let touch = false, shown = null;
-  svg.addEventListener('pointerdown', e => { touch = e.pointerType !== 'mouse'; });
-  const place = e => {
-    const r = wrap.getBoundingClientRect();
-    let x = e.clientX - r.left + 14;
-    if (x + tip.offsetWidth > r.width) x = Math.max(0, e.clientX - r.left - tip.offsetWidth - 14);
-    tip.style.left = x + 'px'; tip.style.top = (e.clientY - r.top + 14) + 'px';
-  };
-  const show = (e, key, kids) => { tip.replaceChildren(...kids); tip.style.display = 'block'; place(e); shown = key; };
-  const hide = () => { tip.style.display = 'none'; shown = null; };
-  // hover (mouse) shows the evidence, click opens; on a touch screen the first tap shows, the second opens
-  const hover = (g, key, kids, open) => {
-    g.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') show(e, key, kids()); });
-    g.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') place(e); });
-    g.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') hide(); });
-    g.addEventListener('click', e => { if (touch && shown !== key) { show(e, key, kids()); return; } hide(); open(); });
-  };
-  const hint = () => h('div', {class: 'note'}, touch ? 'Tap again to open it.' : 'Click to open it.');
-  // a faint wedge behind each sector; a click selects its category
-  for (const s of M.sectors) {
-    const r1 = 1.07 * R, r0 = 0.27 * R, big = s.a1 - s.a0 > Math.PI ? 1 : 0;
-    const [x0, y0] = xy(s.a0, r1), [x1, y1] = xy(s.a1, r1), [x2, y2] = xy(s.a1, r0), [x3, y3] = xy(s.a0, r0);
-    const w = svgEl('path', {d: `M${x0},${y0} A${r1},${r1} 0 ${big} 0 ${x1},${y1} L${x2},${y2} ` +
-      `A${r0},${r0} 0 ${big} 1 ${x3},${y3}Z`, fill: s.color, 'fill-opacity': focus === s.category ? 0.22 : 0.09,
-      style: 'cursor:pointer'}, svgEl('title', {}, `${s.label} (${s.n}): select`));
-    w.addEventListener('click', () => pick(s.category));
-    svg.append(w);
-  }
-  for (const it of M.items) {
-    const [x, y] = xy(it.angle, R), [lx, ly] = xy(it.angle, 1.17 * R), [ex, ey] = xy(it.angle, 1.095 * R);
-    const deg = it.angle * 180 / Math.PI, d = ((deg % 360) + 360) % 360, flip = d > 90 && d < 270;
-    const on = !focus || focus === it.category;
-    const g = svgEl('g', {class: 'it' + (on ? (focus ? ' hl' : '') : ' dim')});
-    g.append(svgEl('line', {x1: 0, y1: 0, x2: x, y2: y, stroke: M.colors.line, 'stroke-opacity': 0.55,
-      'stroke-width': it.line === 'clinical' ? 1.1 + 0.6 * it.n_clinical : 1.3,
-      'stroke-dasharray': it.line === 'ontology' ? '7 4' : it.line === 'shared' ? '1.5 3.5' : null}));
-    const multi = it.n_shared_regions >= 2;
-    g.append(svgEl('circle', {cx: x, cy: y, r: (0.62 * Math.sqrt(45 + 32 * it.evidence)).toFixed(1),
-      fill: color[it.category] || '#9AA1A8', stroke: multi ? M.colors.multi : '#fff', 'stroke-width': multi ? 2.6 : 1}));
-    if (it.east_asian.length)
-      g.append(svgEl('path', {d: `M${ex},${ey - 4.5}l4.5,4.5l-4.5,4.5l-4.5,-4.5z`, fill: M.colors.east_asian}));
-    const lines = labelLines(it.label, 30, lineMax);
-    g.append(svgEl('text', {transform: `translate(${lx},${ly}) rotate(${flip ? 180 - deg : -deg})`,
-      'text-anchor': flip ? 'end' : 'start', 'dominant-baseline': 'central', style: `font-size:${fs.toFixed(1)}px`},
-      lines.map((l, k) => svgEl('tspan', {x: 0, dy: k ? '1.1em' : `${-(lines.length - 1) * 0.55}em`}, l))));
-    hover(g, it.id, () => {
-      const a = (N.get(it.id) || {a: {}}).a, ev = [];
-      if (it.n_clinical) ev.push(`clinical evidence, ${it.n_clinical} item${it.n_clinical > 1 ? 's' : ''}`);
-      if (it.ontology) ev.push('the disease ontology');
-      if (it.n_shared_regions) ev.push(`${it.n_shared_regions} ${S} GWAS region${it.n_shared_regions > 1 ? 's' : ''} ` +
-        `shared${a.shared_regions ? ' (' + a.shared_regions + ')' : ''}`);
-      return [h('b', {}, it.name), h('div', {class: 'k'}, sectorLabel(M, it.category)),
-              h('div', {}, h('span', {class: 'k'}, 'Evidence: '), ev.join('; ')),
-              it.east_asian.length ? h('div', {}, h('span', {class: 'k'}, 'East Asian: '),
-                it.east_asian.map(k => M.east_asian_kinds[k] || k).join('; ')) : null, hint()];
-    }, () => openNode(it.id));
-    svg.append(g);
-  }
-  if (M.single) {                                            // the traits sharing a single region: one node
-    const sg = M.single, [x, y] = xy(sg.angle, R), [lx, ly] = xy(sg.angle, 1.17 * R);
-    const deg = sg.angle * 180 / Math.PI, d = ((deg % 360) + 360) % 360, flip = d > 90 && d < 270;
-    const g = svgEl('g', {class: 'it' + (!focus || focus === 'single' ? (focus ? ' hl' : '') : ' dim')});
-    g.append(svgEl('line', {x1: 0, y1: 0, x2: x, y2: y, stroke: M.colors.line, 'stroke-opacity': 0.55,
-                            'stroke-width': 1.3, 'stroke-dasharray': '1.5 3.5'}),
-             svgEl('circle', {cx: x, cy: y, r: 17, fill: M.colors.single, stroke: '#fff'}),
-             svgEl('text', {x, y, 'text-anchor': 'middle', 'dominant-baseline': 'central', style: 'font-size:12px'},
-                   String(sg.n)),
-             svgEl('text', {transform: `translate(${lx},${ly}) rotate(${flip ? 180 - deg : -deg})`,
-               'text-anchor': flip ? 'end' : 'start', 'dominant-baseline': 'central',
-               style: 'font-style:italic;fill:#57606a'}, `One ${S} region only`));
-    hover(g, '__single', () => [h('b', {}, `${sg.n} trait${sg.n === 1 ? ' shares' : 's share'} a single ${S} GWAS ` +
-      'region'),
-      h('div', {}, `${sg.n === 1 ? 'The' : sg.n_top + ' of them the'} ${sg.top} region: weak evidence of a relation.`),
-      h('div', {class: 'note'}, touch ? 'Tap again to list them.' : 'Click to list them below.')],
-      () => pick('single'));
-    svg.append(g);
-  }
-  const core = svgEl('g', {class: 'core'}, svgEl('circle', {r: 44, fill: M.colors.core}),
-    svgEl('text', {'text-anchor': 'middle', 'dominant-baseline': 'central',
-                   style: `fill:#fff;font-weight:700;font-size:${S.length <= 6 ? 22 : Math.max(11, 132 / S.length)}px`}, S));
-  hover(core, '__core', () => [h('b', {}, D.disease.Name), hint()], () => openNode(CORE));
-  svg.append(core);
-  // the categories (a button selects one), and the key
-  const cats = h('div', {class: 'cmap-cats'}, M.sectors.map(s => h('button', {class: 'btn' + (focus === s.category ?
-      ' on' : ''), onclick: () => pick(s.category)}, h('span', {class: 'dot', style: 'background:' + s.color}),
-      `${s.label} (${s.n})`)),
-    M.single ? h('button', {class: 'btn' + (focus === 'single' ? ' on' : ''), onclick: () => pick('single')},
-      h('span', {class: 'dot', style: 'background:' + M.colors.single}), `One ${S} region only (${M.single.n})`) : null);
-  const sample = (at, extra) => svgEl('svg', {width: 30, height: 12, viewBox: '0 0 30 12'},
-    svgEl('line', {x1: 1, y1: 6, x2: 29, y2: 6, stroke: M.colors.line, ...at}), extra || null);
-  // the key names only what the map draws
-  const has = f => M.items.some(f);
-  const key = h('div', {class: 'cmap-key'},
-    has(i => i.line === 'clinical') ? h('span', {}, sample({'stroke-width': 3}), 'Clinical evidence (width: items)') : null,
-    has(i => i.line === 'ontology') ? h('span', {}, sample({'stroke-width': 1.5, 'stroke-dasharray': '7 4'}),
-      'Disease ontology only') : null,
-    has(i => i.line === 'shared') || M.single ? h('span', {}, sample({'stroke-width': 1.5,
-      'stroke-dasharray': '1.5 3.5'}), 'Shared GWAS signal only') : null,
-    has(i => i.n_shared_regions >= 2) ? h('span', {}, svgEl('svg', {width: 14, height: 14}, svgEl('circle', {cx: 7,
-      cy: 7, r: 5, fill: '#fff', stroke: M.colors.multi, 'stroke-width': 2.4})), `Shares ≥ 2 ${S} GWAS regions`) : null,
-    has(i => i.east_asian.length) ? h('span', {}, svgEl('svg', {width: 12, height: 12}, svgEl('path',
-      {d: 'M6,1l5,5l-5,5l-5,-5z', fill: M.colors.east_asian})), 'East Asian evidence of the relation') : null,
-    h('span', {}, 'Node size: amount of evidence'));
-  // what the map shows and leaves out, of every related condition; the rules are on the build page
-  const sg = M.single, ns = (M.not_shown || {}).shared_signal_without_region || 0;
-  const coverage = h('div', {class: 'note', style: 'text-align:center'}, `Shown: ${M.items.length} conditions` +
-    (sg ? ` and one node for the ${sg.n} trait${sg.n === 1 ? ' that shares' : 's that share'} a single ${S} region ` +
-          `only (${sg.n === 1 ? '' : sg.n_top + ' of them '}` +
-          `${sg.top}; weak evidence)` : '') +
-    (ns ? `; not shown: ${ns} traits of the shared-signal category with no shared region recorded` : '') +
-    `, of ${related().length} related conditions. How a condition enters the graph and how it is classified: the ` +
-    'section below the map, and ', h('a', {href: '#/build'}, 'How it is built'), '.');
-  return h('div', {}, cats, wrap, key, coverage);
 }
 
 // the evidence matrix: one row per related condition, grouped by category, one column per kind of evidence; counts
@@ -1216,12 +1096,11 @@ const DESIGN_SHORT = ['guideline', 'meta-analysis', 'cohort / case-control', 'cr
                       'other'];
 const DIR_MARK = {'increased risk': ['↑', 'increased risk'], 'decreased risk': ['↓', 'decreased risk'],
                   'associated': ['~', 'associated']};
-function catColor(c) {
-  const s = ((D.condition_map || {}).sectors || []).find(x => x.category === c);
-  return s ? s.color : '#8a9199';
-}
-function evidenceMatrix(focus, pick, sortBy, setSort) {
-  const E = D.cond_evidence || {}, conds = related();
+const catColor = c => (D.category_colors || {})[c] || '#8a9199';
+function evidenceMatrix(focus, sortBy, setSort, query) {
+  const E = D.cond_evidence || {};
+  const conds = related().filter(c => !query || c.label.toLowerCase().includes(query) ||
+    c.id.toLowerCase().includes(query));
   const regions = byType('region'), perRegion = regions.length && regions.length <= 20;
   const ev = c => E[c.id] || {pubs: 0, dirs: [], regions: {}};
   const nReg = c => Object.keys(ev(c).regions || {}).length;
@@ -1231,7 +1110,7 @@ function evidenceMatrix(focus, pick, sortBy, setSort) {
     gwas: c => -(num(c.a.n_gwas_studies) ?? -1), genes: c => -(num(c.a.n_mendelian_genes) ?? -1)};
   const order = (a, b) => (KEYS[sortBy](a) - KEYS[sortBy](b)) || (ev(b).pubs - ev(a).pubs) ||
     ((ev(a).design ?? 9) - (ev(b).design ?? 9)) || (nReg(b) - nReg(a)) || a.label.localeCompare(b.label);
-  const shown = CATS.filter(k => !focus || focus === 'single' || focus === k);
+  const shown = CATS.filter(k => !focus || focus === k);
   // the header: column groups, then columns (a sortable column says so)
   const sortTh = (key, label, title) => h('th', {class: 'mx-s' + (sortBy === key ? ' on' : ''), title:
     (title ? title + '. ' : '') + 'Click to sort each category by this column.', onclick: () => setSort(key)}, label);
@@ -1254,14 +1133,14 @@ function evidenceMatrix(focus, pick, sortBy, setSort) {
   for (const k of shown) {
     const rows = conds.filter(c => c.a.category === k).sort(order);
     if (!rows.length) continue;
-    body.append(h('tr', {class: 'mx-cat'}, h('td', {colspan: nCols}, h('span', {class: 'dot', style:
-      'background:' + catColor(k)}), h('b', {}, `${SHOWN_CAT(k)} (${rows.length})`),
-      D.category_desc[k] ? h('span', {class: 'mx-desc'}, ' · ' + D.category_desc[k]) : null)));
+    body.append(h('tr', {class: 'mx-cat'}, h('td', {colspan: nCols}, h('span', {class: 'mx-catl'},
+      h('span', {class: 'dot', style: 'background:' + catColor(k)}), h('b', {}, `${SHOWN_CAT(k)} (${rows.length})`),
+      D.category_desc[k] ? h('span', {class: 'mx-desc'}, ' · ' + D.category_desc[k]) : null))));
     for (const c of rows) {
       const e = ev(c), g = c.a.genetics || 'none';
       // clinical counts in blue, the condition's own genetics in gray: the matrix is about the relation
-      const cnt = (v, what, q) => v ? h('td', {class: 'mx-n ' + BIN(v, q), title: `${v} ${what}`}, String(v)) :
-        h('td', {class: 'mx-n'});
+      const cnt = (v, what, q, more) => v ? h('td', {class: 'mx-n ' + BIN(v, q), title: `${v} ${what}` +
+        (more || '')}, String(v)) : h('td', {class: 'mx-n'});
       const dirs = Object.keys(DIR_MARK).filter(d => (e.dirs || []).includes(d)).map(d => h('span',
         {title: DIR_MARK[d][1]}, DIR_MARK[d][0]));
       if (e.contrary) dirs.push(h('span', {class: 'mx-x', title: 'a study found no association'}, '✕'));
@@ -1270,7 +1149,8 @@ function evidenceMatrix(focus, pick, sortBy, setSort) {
         return h('td', {class: 'mx-c', title: m ? `${r.label}: ${m === 'c' ? 'colocalization' :
           'lead-variant overlap'}` : ''}, m ? h('span', {class: 'mx-dot ' + m}) : null);
       }) : [cnt(nReg(c), `${S} regions shared`)];
-      const own = g === 'full' ? [cnt(num(c.a.n_gwas_studies), 'GWAS studies', 'g'),
+      const ea = num(c.a.n_eas_studies);
+      const own = g === 'full' ? [cnt(num(c.a.n_gwas_studies), 'GWAS studies', 'g', ea ? `, ${ea} East Asian` : ''),
                                   cnt(num(c.a.n_mendelian_genes), 'curated genes', 'g')] :
         [h('td', {colspan: 2, class: 'mx-nf', title: c.a.genetics_note || ''},
            g === 'none' ? 'no Open Targets entry' : 'not fetched')];
@@ -1294,66 +1174,65 @@ function evidenceMatrix(focus, pick, sortBy, setSort) {
     h('span', {}, h('span', {class: 'mx-ea'}, '◆'), ' East Asian evidence'),
     regions.length ? h('span', {}, h('span', {class: 'mx-dot c'}), ' colocalization ', h('span', {class: 'mx-dot o'}),
       ' lead-variant overlap') : null,
-    h('span', {}, 'Click a column title to sort each category by it.'));
-  const buttons = h('div', {class: 'cmap-cats'}, h('button', {class: 'btn' + (!focus ? ' on' : ''), onclick: () =>
-    focus && pick(focus)}, `All (${conds.length})`), CATS.filter(k => conds.some(c => c.a.category === k)).map(k =>
-    h('button', {class: 'btn' + (focus === k ? ' on' : ''), onclick: () => pick(k)}, h('span', {class: 'dot',
-      style: 'background:' + catColor(k)}), `${SHOWN_CAT(k)} (${conds.filter(c => c.a.category === k).length})`)));
-  return h('div', {}, buttons, ...hscroll(h('table', {class: 'matrix mx'}, head, body), 'more columns'), key);
+    h('span', {}, 'Hover a GWAS count for its East Asian studies, “not fetched” for the reason; click a column ' +
+      'title to sort each category by it.'));
+  if (!body.childNodes.length) return h('div', {class: 'note'}, 'No related condition matches.');
+  // under the matrix: what a blank count of its own genetics means, with this disease's counts
+  const P = D.params, nf = count(related(), c => (E[c.id] || {}).nf || 'full');
+  const why = {shared: 'related only by a shared GWAS signal',
+               broad: `a broad class (more than ${P.MaxDescendants ?? 100} subtypes in the ontology)`,
+               cooccurrence: `related only as ${D.cooccurrence.join(' or ').toLowerCase()} by fewer than ` +
+                 `${P.ComorbidityMinPublications ?? 2} publications`,
+               gwas: `more than ${P.MaxGwasStudies ?? 100} GWAS studies (a general trait)`};
+  const reasons = Object.keys(why).filter(k => nf[k]).map(k => `${why[k]} (${nf[k]})`);
+  const notes = h('div', {class: 'mx-notes'},
+    h('div', {}, h('b', {}, 'No Open Targets entry'), ' — the condition has no entry in Open Targets, so it has no ' +
+      `genetics of its own to read (${nf.none || 0} conditions).`),
+    h('div', {}, h('b', {}, 'Not fetched'), ` — its relation and its signals shared with ${S} stand, but its own GWAS ` +
+      `studies and curated genes are not read: ${reasons.join('; ') || 'no condition here'}.`),
+    h('div', {}, 'Blank counts are not zeros. Why, and every rule of this page: ', h('a', {href: '#/build/relations'},
+      'How it is built › Related conditions'), '.'));
+  return h('div', {}, h('div', {class: 'mx-scroll'}, h('table', {class: 'matrix mx'}, head, body)), key, notes);
 }
 
 function conditionsPage(selected) {
-  const M = D.condition_map && (D.condition_map.items.length || D.condition_map.single) ? D.condition_map : null;
   // the selection is part of the address (#/conditions/<category>), so that it can be shared
-  const cats = CATS.filter(k => related().some(c => c.a.category === k));
-  let focus = selected && (selected === 'single' ? M && M.single : cats.includes(selected)) ? selected : null;
-  let sortBy = 'pubs';
-  const matBox = h('div'), mapBox = h('div'), listBox = h('div');
-  // the condition map is drawn when it is opened (a closed box has no size to draw in)
-  const mapDet = M ? h('details', {class: 'cmap-all'}, h('summary', {}, 'Condition map: the same relations drawn ' +
-    `around ${S}`), mapBox) : null;
-  if (mapDet) mapDet.addEventListener('toggle', () => { if (mapDet.open) mapBox.replaceChildren(conditionMap(M,
-    focus, pick)); });
-  const members = f => new Set(f === 'single' ? M.single.ids : related().filter(c => c.a.category === f)
-    .map(c => c.id));
+  const conds = related(), cats = CATS.filter(k => conds.some(c => c.a.category === k));
+  let focus = selected && cats.includes(selected) ? selected : null, sortBy = 'pubs', query = '';
+  const btnBox = h('div', {class: 'cmap-cats'}), matBox = h('div'), shown = h('span', {class: 'note'});
   const pick = f => {
     focus = focus === f ? null : f;
     try { history.replaceState(null, '', '#/conditions' + (focus ? '/' + encodeURIComponent(focus) : '')); }
     catch (e) { /* an address that cannot change: the selection still applies */ }
     draw();
   };
-  const setSort = k => { sortBy = k; matBox.replaceChildren(evidenceMatrix(focus, pick, sortBy, setSort)); };
+  const setSort = k => { sortBy = k; draw(); };
   const draw = () => {
-    matBox.replaceChildren(evidenceMatrix(focus, pick, sortBy, setSort));
-    if (mapDet && mapDet.open) mapBox.replaceChildren(conditionMap(M, focus, pick));
-    const keep = focus ? members(focus) : null, rows = related().filter(c => !keep || keep.has(c.id));
-    const name = focus === 'single' ? `Traits sharing a single ${S} GWAS region` : focus ? sectorLabel(M, focus) : '';
-    listBox.replaceChildren(h('h3', {}, focus ? `${name} (${rows.length})` : `Every related condition (${rows.length})`,
-      focus ? h('button', {class: 'btn', style: 'margin-left:10px', onclick: () => pick(focus)},
-                'Show every condition') : null),
-      table([{label: 'Condition', get: c => c.label, cell: c => nodeLink(c.id)},
-             {label: 'Category', get: c => String(catRank(c.a.category)).padStart(3, '0') + ' ' + c.a.category,
-              cell: c => c.a.category},
-             {label: 'Evidence types', get: c => c.a.sources},
-             {label: 'Clinical items', num: true, get: c => c.a.n_clinical},
-             {label: `${S} regions shared`, num: true, get: c => c.a.n_shared_regions,
-              cell: c => c.a.shared_regions || ''},
-             {label: 'GWAS studies', num: true, get: c => c.a.n_gwas_studies},
-             {label: 'East Asian GWAS', num: true, get: c => c.a.n_eas_studies},
-             {label: 'Curated genes', num: true, get: c => c.a.n_mendelian_genes}], rows, {sort: 1}));
+    btnBox.replaceChildren(h('button', {class: 'btn' + (!focus ? ' on' : ''), onclick: () => focus && pick(focus)},
+      `All (${conds.length})`), ...cats.map(k => h('button', {class: 'btn' + (focus === k ? ' on' : ''),
+      onclick: () => pick(k)}, h('span', {class: 'dot', style: 'background:' + catColor(k)}),
+      `${SHOWN_CAT(k)} (${conds.filter(c => c.a.category === k).length})`)));
+    const n = conds.filter(c => (!focus || c.a.category === focus) && (!query ||
+      c.label.toLowerCase().includes(query) || c.id.toLowerCase().includes(query))).length;
+    shown.textContent = n === conds.length ? '' : `${n} of ${conds.length} conditions shown`;
+    matBox.replaceChildren(evidenceMatrix(focus, sortBy, setSort, query));
   };
+  const filter = h('input', {type: 'search', placeholder: 'Filter conditions…', oninput: e => {
+    query = e.target.value.trim().toLowerCase(); draw(); }});
   draw();
   return [h('h2', {}, 'Related conditions'), h('p', {class: 'lead'}, `Every condition related to ${S}, with the ` +
     'kinds of evidence for the relation: one row per condition, grouped by category, one column per kind of ' +
-    'evidence. Select a category to show only its conditions here and in the table below; click a condition to open ' +
-    'its page, with every piece of its evidence.'),
-    matBox, relationsGuide(), mapDet, listBox];
+    'evidence. Select a category or filter by name; click a condition to open its page, with every piece of its ' +
+    'evidence. How the conditions are found and classified, and what each column means: ',
+    h('a', {href: '#/build/relations'}, 'How it is built › Related conditions'), '.'),
+    btnBox, h('div', {class: 'tools mx-tools'}, filter, shown), matBox];
 }
 
-// how the related conditions are found and classified: the routes into the graph, the steps of the clinical
-// relations (who decides each: a rule, a database or the language models), the categories, the columns of the table
-// and what is left out; the rules are those of every disease, the lines marked with the short name give this snapshot
-function relationsGuide() {
+// how the related conditions are found and classified (a section of the build page): the routes into the graph,
+// the steps of the clinical relations (who decides each: a rule, a database or the language models), the categories,
+// the evidence matrix and what is left out; the rules are those of every disease, the lines marked with the short
+// name give this snapshot
+function relationsDetail() {
   const L = D.llm, R = L.relations, P = D.params, conds = related(), cur = L.curated_relations;
   const n = v => (v ?? 0).toLocaleString(), pv = (k, d) => P[k] ?? d;
   const model = r => (L.models.find(x => x.role === r) || {}).model || '';
@@ -1407,6 +1286,17 @@ function relationsGuide() {
                  other_disease_comparison: 'a comparison with another disease only',
                  consequence_or_finding: 'a consequence or finding', other_form: `another form of ${S}'s parent class`};
     const dropped = Object.entries(V.rows_dropped || {}).map(([k, v]) => `${WHY[k] || k} ${v}`).join(', ');
+    if (R) out.push(flowBoxes([
+      {n: R.records, unit: 'records', label: 'found in PubMed', by: ['pubmed', 'rule']},
+      {n: R.relations, unit: 'relations', label: 'read by two models and checked', by: ['model', 'rule']},
+      {n: R.conditions_read, unit: 'conditions', label: 'mapped to Open Targets' + (R.split ? `; ${R.split} joined ` +
+        `name${R.split > 1 ? 's' : ''} split` : ''), by: ['ot', 'rule']},
+      {n: C.conditions, unit: 'conditions', label: 'after the consolidation', by: ['model']},
+      {n: V.conditions, unit: 'conditions', label: 'after the verification', by: ['model']},
+      {n: nBy(c => src(c).includes('clinical')), unit: 'conditions', label: 'related by clinical evidence in the ' +
+        'graph', by: ['rule']},
+      {n: conds.length, unit: 'conditions', label: 'related in all, with the ontology and shared signals',
+        by: ['ot', 'rule']}]));
     out.push(h('div', {class: 'stps'},
       st(1, 'Search', ['pubmed', 'rule'], `The terms of ${S}, and a guideline, consensus statement, meta-analysis, ` +
         'systematic review, cohort or case-control study, and a relation word (risk, associat*, comorbid*, ' +
@@ -1488,30 +1378,39 @@ function relationsGuide() {
     ['Relation', 'Its place in the disease ontology: parent, sibling or child.'],
     [`Shared ${S} GWAS regions`, 'A filled dot: a credible set of the condition colocalizes with the region; an open ' +
       'dot: it holds the region\'s lead variant (lead-variant overlap). With more than 20 regions, a count.'],
-    ['Its own genetics', 'GWAS studies and curated genes, as in the table; “not fetched” or “no Open Targets entry” ' +
-      'when its own genetics are not read (the reason on hover and on its page).']]),
+    ['Its own genetics', 'Its own GWAS studies in Open Targets (hover: how many are East Asian, at least ' +
+      `${pv('EasMin', 0.5) * 100}% East Asian sample) and its genes with curated gene–disease evidence (source score ≥ ` +
+      `${pv('MendelianMin', 0.5)}; ClinVar alone, a pathogenic record of two stars or more). “Not fetched” and “no ` +
+      'Open Targets entry”: the next table.']]),
     here('best design: ' + (tallyText(dz, D.relation_designs) || 'none') + '.'));
 
-  // ── the columns of the table ──
-  const gen = count(conds, c => c.a.genetics || 'none');
-  out.push(h('h4', {}, 'The columns of the table below'), plain(['Column', 'Meaning'], [
-    ['Category', 'As above.'],
-    ['Evidence types', h('span', {}, 'The routes that relate it: ', code('clinical'), ' (a quoted relation), ',
-      code('ontology'), ', ', code('colocalization'), ' and ', code('lead-variant overlap'),
-      ' (a shared GWAS signal, by either test); several when several do.')],
-    ['Clinical items', 'The pieces of clinical evidence (quoted statements) that relate it. A study that found no ' +
-      'association is shown on its page as contrary evidence, but not counted.'],
-    [`${S} regions shared`, `The ${S} GWAS regions whose signal it shares, by colocalization or lead-variant overlap.`],
-    ['GWAS studies', 'Its own GWAS studies in Open Targets. Blank, not zero, when its own genetics are not fetched ' +
-      '(the reason is on its page): no Open Targets entry; related only by a shared signal; more than ' +
-      `${pv('MaxGwasStudies', 100)} GWAS studies; a broad class; ` + (D.cooccurrence.length ? 'a ' +
-      `${D.cooccurrence.join(' or ').toLowerCase()} from fewer than ${pv('ComorbidityMinPublications', 2)} ` +
-      'publications.' : '')],
-    ['East Asian GWAS', `Of these, the studies whose sample is at least ${pv('EasMin', 0.5) * 100}% East Asian.`],
-    ['Curated genes', `Genes with curated gene–disease evidence for it (source score ≥ ${pv('MendelianMin', 0.5)}; ` +
-      'ClinVar alone, a pathogenic record of two stars or more).']]),
-    here(`its own genetics fetched in full for ${n(gen.full || 0)} conditions, shared signals only for ` +
-      `${n(gen.coloc_only || 0)}, none for ${n(gen.none || 0)} (no Open Targets entry).`));
+  // ── its own genetics: read in full, not read, or nothing to read ──
+  const nfc = count(conds, c => (E[c.id] || {}).nf || 'full'), NF = h('b', {}, 'Not fetched');
+  out.push(h('h4', {}, 'Its own genetics: fetched, not fetched, or no entry'), plain(['', 'When', 'Rule in this run',
+    S], [
+    [h('b', {}, 'Fetched in full'), 'Every other condition with an Open Targets entry: its GWAS studies and credible ' +
+      'sets, the top L2G gene of each, its curated gene–disease evidence. These bring its genes into the graph.', '—',
+      n(nfc.full || 0)],
+    [NF, `Related only by a shared GWAS signal: the relation is the shared signal itself, and its other genes say ` +
+      `nothing about ${S}.`, `shares at least ${pv('MinSharedRegions', 2)} regions (MinSharedRegions)`,
+      n(nfc.shared || 0)],
+    [h('b', {}, 'Not fetched'), 'A broad class: its own GWAS and curated genes are those of its many subtypes, each ' +
+      'listed on its own when related.', `more than ${pv('MaxDescendants', 100)} subtypes (MaxDescendants)`,
+      n(nfc.broad || 0)],
+    ...(D.cooccurrence.length ? [[h('b', {}, 'Not fetched'), `Related only as ${D.cooccurrence.join(' or ')
+      .toLowerCase()}, not an ontology neighbor, on too few publications: co-occurrence says nothing of which came ` +
+      `first, and its genes say little about the causes of ${S} until the relation is established.`,
+      `fewer than ${pv('ComorbidityMinPublications', 2)} publications (ComorbidityMinPublications)`,
+      n(nfc.cooccurrence || 0)]] : []),
+    [h('b', {}, 'Not fetched'), 'A general trait (a blood count, body size): its genes are so many that they would ' +
+      'flood the gene map.', `more than ${pv('MaxGwasStudies', 100)} GWAS studies (MaxGwasStudies)`,
+      n(nfc.gwas || 0)],
+    [h('b', {}, 'No Open Targets entry'), 'No entry in Open Targets: there is nothing to read; the relation stands on ' +
+      'its clinical evidence.', '—', n(nfc.none || 0)]]),
+    h('p', {class: 'note'}, `A condition whose own genetics are not fetched keeps its relation, its clinical evidence ` +
+      `and its signals shared with ${S}, which are looked up from the regions of ${S}. Its counts are left blank, not ` +
+      'zero: a zero would read as “looked up, none found”. When several reasons apply, the first in the order of ' +
+      'this table is given, on hover in the matrix and on its page.'));
 
   // ── what is left out ──
   const lo = L.shared_left_out || {}, few = lo.too_few || {}, broad = lo.broad || {};
@@ -1539,11 +1438,10 @@ function relationsGuide() {
       'merge or a feature must name another listed condition. An answer outside these rules is not used, and is ' +
       'logged.'),
     h('li', {}, 'Every disputed item is listed with both readings and the decision under ',
-      h('a', {href: '#/build'}, 'How it is built'), ' › Language models and in the curation sheet of the workbook; ' +
-      'every decision of the consolidation and the verification, with its reason, is in the snapshot\'s ' +
-      '01.relations folder.')));
-  return h('details', {class: 'cmap-all'}, h('summary', {}, 'How the related conditions are found and classified'),
-    h('div', {class: 'guide'}, ...out));
+      h('a', {href: '#/build/models'}, 'Language models'), ' and in the curation sheet of the workbook; every ' +
+      'decision of the consolidation and the verification, with its reason, is in the snapshot\'s 01.relations ' +
+      'folder.')));
+  return out;
 }
 
 function regionsPage() {
@@ -1695,11 +1593,15 @@ function flowDiagram(models) {
 const SRC = {ot: ['Open Targets', '#3c6e9f'], pubmed: ['PubMed', '#2e7d6b'], epmc: ['Europe PMC', '#4f8fbf'],
              profile: ['disease profile', '#b08a3c'], model: ['language models', '#6a4c93'], rule: ['rules', '#6e7781']};
 const tag = k => h('span', {class: 'badge', style: 'background:' + SRC[k][1]}, SRC[k][0]);
+// a flow of counts: each box a number, its unit, what it is and who acts at that step (a rule, a database, the models)
+const flowBoxes = items => h('div', {class: 'fb'}, items.map((x, i) => [i ? h('div', {class: 'fb-arrow'}, '→') : null,
+  h('div', {class: 'fb-box'}, h('div', {class: 'fb-n'}, (x.n ?? 0).toLocaleString(), h('span', {class: 'fb-u'},
+    ' ' + x.unit)), h('div', {class: 'fb-l'}, x.label), h('div', {class: 'fb-by'}, (x.by || []).map(tag)))]).flat());
 const here = (...kids) => h('div', {class: 'here'}, h('b', {}, S + ': '), ...kids);
 const count = (xs, f) => xs.reduce((m, x) => { const k = f(x); m[k] = (m[k] || 0) + 1; return m; }, {});
 const tallyText = (m, order) => (order || Object.keys(m)).filter(k => m[k]).map(k => `${k} ${m[k]}`).join('; ');
 
-function buildPage() {
+function buildPage(sel) {
   const P = D.params, L = D.llm, m = D.meta, cc = D.curation, R = L.relations, X = L.extract || {};
   const num0 = v => (v ?? 0).toLocaleString(), pv = (k, d) => P[k] ?? d;
   const n = t => D.edges.filter(e => e[2] === t).length;
@@ -1714,6 +1616,9 @@ function buildPage() {
   const out = [h('h2', {}, 'How this knowledge graph is built'), h('p', {class: 'lead'}, 'Databases give the facts, ' +
     'two language models read the literature, and rules decide what the graph counts. The rules are the same for ' +
     `every disease; the lines marked ${S} give this snapshot.`)];
+  // the contents: every section below, filled at the end
+  const toc = h('div', {class: 'toc'});
+  out.push(toc);
 
   // ── at a glance: sources → methods → graph ──
   const item = (k, title, text) => h('div', {class: 'gl-item'}, h('div', {class: 'gl-t'}, tag(k), ' ', title),
@@ -1803,12 +1708,39 @@ function buildPage() {
       '.')));
 
   // ── in detail ──
-  const det = (title, sub, ...kids) => h('details', {class: 'bd'}, h('summary', {}, h('b', {}, title),
-    h('span', {class: 'bd-sub'}, sub)), h('div', {class: 'bd-body'}, ...kids));
+  // each section opens with its answer in short
+  const SHORT = {
+    sources: 'Four kinds of source, each read its own way: Open Targets by rules; PubMed and Europe PMC abstracts and ' +
+      'methods by the language models, their records by rules; the disease profile by rules.',
+    regions: `A region is a genome-wide significant locus of ${S} with a credible lead variant, published or from ` +
+      `Open Targets. Its genes are the strongest genetic evidence of the graph, and every related condition is ` +
+      'tested against it for a shared signal.',
+    studies: `A publication is a genetic study of ${S} when two models, reading it apart, include it, and every ` +
+      'gene, variant and number they take from it is found in its text; rules then curate it.',
+    ladder: 'Each gene takes the strongest of seven levels it reaches, from a GWAS region or curated evidence (1) ' +
+      `to being named without a result about ${S} (7). Every disease has the same seven levels.`,
+    relations: `A condition is related to ${S} by a quoted clinical relation, by the disease ontology or by GWAS ` +
+      'signals shared with it. The models read and check the clinical relations; rules and databases decide the ' +
+      'rest, including the category and which genetics are read.',
+    associations: 'Every edge of the graph has a type, a meaning, a source and the rule that made it.',
+    models: 'Two models read every record apart, a third decides where they differ, and rules check every item ' +
+      'against its source text. No model decides a count, a level, a category vote or a rule.',
+    snapshots: 'A snapshot is the graph of one date: it keeps what it downloaded, its model answers are cached, and ' +
+      'every file has one job.',
+    rules: 'Every rule of the build, with its value in this run and the reason it was chosen.'};
+  const SECTIONS = [];
+  const det = (key, title, sub, ...kids) => {
+    SECTIONS.push([key, title, sub]);
+    const d = h('details', {class: 'bd', id: 'b-' + key}, h('summary', {}, h('b', {}, title),
+      h('span', {class: 'bd-sub'}, sub)), h('div', {class: 'bd-body'}, SHORT[key] ? h('p', {class: 'insh'},
+      SHORT[key]) : null, ...kids));
+    if (sel === key) d.open = true;
+    return d;
+  };
   out.push(h('h3', {}, 'In detail'));
   // the sources
   const srcRow = (k, gives, how) => h('tr', {}, h('td', {}, tag(k)), h('td', {}, gives), h('td', {}, how));
-  out.push(det('Sources', 'what each database gives, and how it is read', h('table', {class: 'plain'},
+  out.push(det('sources', 'Sources', 'what each database gives, and how it is read', h('table', {class: 'plain'},
     h('thead', {}, h('tr', {}, ['Source', 'What it gives', 'How it is read'].map(x => h('th', {class: 'nosort'}, x)))),
     h('tbody', {},
       srcRow('ot', 'The disease and its ontology (names, synonyms, parents, children); GWAS studies and credible sets ' +
@@ -1823,6 +1755,91 @@ function buildPage() {
         'Methods by the language models; mentions by rules.'),
       srcRow('profile', 'The Open Targets ID (required); optional curated files: clinical relations, published GWAS ' +
         'regions, gene functions, curation entries.', 'By rules.')))));
+
+  // the GWAS regions of the disease
+  const nr = D.not_regions.length;
+  out.push(det('regions', `The GWAS regions of ${S}`, 'which GWAS signals are regions, how they are named, how they ' +
+    'rank genes', h('p', {}, D.text.regions_lead), h('ul', {},
+    h('li', {}, `A region is a genome-wide significant locus of a published GWAS of ${S} (the profile's table), or a ` +
+      `credible set of a GWAS of ${S} in Open Targets that no published region holds, with lead P < ` +
+      `${pv('GenomeWideP', 5e-8)} and a credible lead; credible sets within ${pv('RegionWindowKb', 500)} kb are one ` +
+      'region.'),
+    h('li', {}, `A lead is credible with at least ${pv('RegionMinMac', 25)} expected copies of its minor allele in ` +
+      `the smaller group of its study and, below a frequency of ${pv('RegionMinMaf', 0.01)}, P < ` +
+      `${pv('RareVariantP', 5e-9)}; or when another GWAS of ${S} replicates it. A genome-wide significant signal ` +
+      'without a credible lead is not a region, and is listed with the reason.'),
+    h('li', {}, 'A region is named by the gene the publication reports, else by the top locus-to-gene (L2G) gene of ' +
+      `its lead credible set when the score reaches ${pv('L2gMin', 0.5)}, else by the position of its lead variant.`),
+    h('li', {}, 'The genes of a region are at level 1 of the evidence ladder (code G); a region genome-wide ' +
+      'significant only in a secondary analysis of a published GWAS puts its genes at level 2 (G*): ',
+      h('a', {href: '#/build/ladder'}, 'the evidence ladder'), '.'),
+    h('li', {}, 'A related condition shares a region when a credible set of one of its GWAS colocalizes with the ' +
+      `region's (CLPP ≥ ${pv('ClppMin', 0.01)} or H4 ≥ ${pv('H4Min', 0.8)}), or, where the region has no credible ` +
+      `set of ${S}, holds its lead variant (PIP ≥ ${pv('OverlapPipMin', 0.1)}).`)),
+    here(`${regions.length} region${regions.length === 1 ? '' : 's'}` + (regions.length ? ` (${nPub} published, ` +
+      `${regions.length - nPub} from Open Targets)` : '') + (nr ? `; ${nr} genome-wide significant ` +
+      `signal${nr === 1 ? '' : 's'} not a region` : '') + '. Every one is on the ', h('a', {href: '#/regions'},
+      'GWAS regions'), ' page.')));
+  // the genetic studies of the disease
+  const ps = D.prescreen || {};
+  const terms = (ps.genetic_terms || []).map(t => t.replace(/\\b|\\d\{\d*,?\d*\}|[?\\]/g, '')).filter(Boolean);
+  out.push(det('studies', `The genetic studies of ${S}`, 'search, pre-screen, reading, checks, curation, design and ' +
+    'place', flowBoxes([
+      {n: X.records, unit: 'records', label: 'found in PubMed', by: ['pubmed', 'rule']},
+      {n: X.read_by_model, unit: 'records', label: 'read by the models after the pre-screen', by: ['rule']},
+      {n: X.included, unit: 'studies', label: 'included by the readers', by: ['model']},
+      {n: X.findings, unit: 'findings', label: 'extracted and found in the text', by: ['model', 'rule']},
+      {n: cc.counts.studies, unit: 'studies', label: 'kept after the curation', by: ['rule']}]),
+    h('div', {class: 'stps'},
+    step(1, 'Search', ['pubmed', 'rule'], `The name, short name and exact synonyms of ${S} in title or abstract, ` +
+      'together with a genetic-study term, to the snapshot date.', `${num0(X.records)} records.`),
+    step(2, 'Pre-screen', ['rule'], 'Before any model reads a record: a record of a type that reports no original ' +
+      `data (${(ps.excluded_types || []).join(', ').toLowerCase()}) is left out, and so is one whose title and ` +
+      `abstract name no genetic-study term (${terms.length} terms, such as ${terms.slice(0, 8).join(', ')}).`,
+      `${num0(X.prescreened_out)} left out; ${num0(X.read_by_model)} read by the models.`),
+    step(3, 'Reading', ['model'], `Two models read each abstract apart and decide whether it is a genetic study of ` +
+      `${S}; they extract its findings (gene, variant, result, effect, P), its sample sizes and whether it was done ` +
+      'in Japan or East Asia, and quote its methods from the open full text where there is one. The adjudicator ' +
+      'decides where they differ (see Language models).', `${num0(X.included)} studies included; ` +
+      `${num0(X.findings)} findings.`),
+    step(4, 'Source-text check', ['rule'], 'Every gene, variant, number and quote must occur in its text, or the item ' +
+      'is dropped and logged; a result label that the wording of its own sentence contradicts is flagged.',
+      `${num0(X.dropped_items)} items dropped; ${num0(X.result_flags)} result labels flagged.`),
+    step(5, 'Curation', ['pubmed', 'rule'], 'Every publication is looked up in PubMed: retracted articles and ' +
+      'conference material leave the graph, preprints and errata are flagged; a variant gets one name; a finding is ' +
+      `marked by what it is about (${S} itself, another trait, a functional result, or background), and only ` +
+      `findings about ${S} itself count for levels 3–6; text-mined links to a gene the text does not name are ` +
+      'removed.', `${num0(cc.counts.publications)} publications checked; ${cc.n_excluded} left out, ` +
+      `${cc.flagged.length} flagged; ${num0(cc.counts.studies)} genetic studies kept.`),
+    step(6, 'Design and place', ['rule'], 'The design class is the first of these whose rule the study meets, from ' +
+      `the study type and the design words the readers quote: ${D.design_classes.join('; ')}. The place is the ` +
+      'country of the first author\'s institution (PubMed, else Europe PMC); a study is East Asian when it was done ' +
+      'there or its abstract states an East Asian population.', tallyText(count(studies, p => p.a.design_class)) +
+      '.')),
+    h('div', {}, 'Every study with its findings: ', h('a', {href: '#/studies'}, 'Genetic studies'), '; every ' +
+      'curation decision: ', h('a', {href: '#/curation'}, 'Curation'), '.')));
+  // the evidence ladder and the functions of the genes
+  const lvCount = count(genes, g => String(lvl(g)));
+  out.push(det('ladder', 'The evidence ladder and gene functions', 'what each level means, how a gene gets its ' +
+    'level and its function',
+    h('p', {}, `Every gene with genetic evidence for ${S} takes the strongest level it reaches. ${D.text.ladder_note}`),
+    h('table', {class: 'ladder-def'}, h('tbody', {}, Object.entries(D.ladder).map(([k, [code, label]]) =>
+      h('tr', {class: 'lv' + k}, h('td', {class: 'lvk'}, h('b', {}, k), code ? ` ${code}` : ''),
+        h('td', {class: 'lvn'}, label), h('td', {}, D.ladder_def[k],
+          D.level_status[k] ? h('div', {class: 'note'}, `${S}: ${D.level_status[k].full}`) : null),
+        h('td', {class: 'num', style: 'white-space:nowrap'}, `${lvCount[k] || 0} gene${lvCount[k] === 1 ? '' :
+          's'}`))))),
+    h('p', {}, `The codes: G, a gene of a GWAS region of ${S}; G*, of a region significant only in a secondary ` +
+      `analysis; C, curated gene–disease evidence (source score ≥ ${pv('MendelianMin', 0.5)}; ClinVar alone, a ` +
+      `pathogenic record of two stars or more); L, a positive finding of a genetic study of ${S}. ${D.no_level}.`),
+    h('p', {}, 'The function of a gene: the functions of the profile; for a gene they do not list, or without them, ' +
+      'the Reactome top-level pathway that holds most genes of the ladder (“Disease” excluded); a gene without a ' +
+      `Reactome pathway in Open Targets: “${D.other_genes}”.`),
+    here(`${genes.length} genes on the ladder; ${byType('theme').length} functions (${L.themes || 'curated'}).`)));
+  // the related conditions
+  out.push(det('relations', 'Related conditions', 'how they are found and classified: the routes, the steps and the ' +
+    'models\' part, the categories, the evidence matrix, what is left out', h('div', {class: 'guide'},
+    ...relationsDetail())));
   // the associations
   const EDGE = {
     related_to: [['profile', 'model', 'ot'], 'Clinical: a PubMed abstract quoted verbatim (curated list, or read by ' +
@@ -1854,41 +1871,65 @@ function buildPage() {
       'gene, or naming the disease or a neighbor, is removed.'],
     gwas_of: [['ot'], 'The GWAS studies of the disease and of each related condition; a condition with more than ' +
       `${pv('MaxGwasStudies', 100)} GWAS studies keeps its shared signals only, and no study of it is listed.`]};
-  out.push(det('Associations', `the ${Object.keys(D.schema.edges).length} edge types: where each comes from, by which ` +
+  out.push(det('associations', 'Associations', `the ${Object.keys(D.schema.edges).length} edge types: where each comes from, by which ` +
     'rule', h('table', {class: 'plain'},
     h('thead', {}, h('tr', {}, ['Edge', 'Meaning', 'Comes from', 'Rule (this run)', S].map(x => h('th', {class: 'nosort'},
       x)))),
     h('tbody', {}, Object.keys(D.schema.edges).map(k => h('tr', {}, h('td', {}, h('code', {}, k)),
       h('td', {}, D.schema.edges[k]), h('td', {}, (EDGE[k] || [[]])[0].map(tag)), h('td', {}, (EDGE[k] || [, ''])[1]),
       h('td', {class: 'num'}, n(k).toLocaleString())))))));
-  // categories and levels
-  const ladder = Object.entries(D.ladder).map(([k, [code, label]]) => `${k}${code ? ' ' + code : ''} ${label}`);
-  const card = (title, rule, mine) => h('div', {class: 'llm-step'}, h('h4', {}, title), h('p', {}, rule), here(mine));
-  out.push(det('Categories and levels', 'how a condition, a gene and a study are classified', h('div',
-    {class: 'llm-steps'},
-    card('Category of a related condition', 'Clinical evidence first: the most frequent category of its evidence ' +
-      'rows (curated list: as listed; read from PubMed: each row\'s category as the verification settled it); an ' +
-      `ontology neighbor without clinical evidence joins ${D.ontology_category}; a condition related by a shared GWAS ` +
-      'signal only joins “Shared GWAS signal only”. Details on the Related conditions page.',
-      tallyText(count(conds, x => SHOWN_CAT(x.a.category)), CATS.map(SHOWN_CAT)) + '.'),
-    card('Evidence level of a gene', 'The strongest level it reaches: ' + ladder.join('; ') + '. Levels 3–6 count ' +
-      'only findings about the disease itself.',
-      tallyText(count(genes, g => 'level ' + lvl(g)), Object.keys(D.ladder).map(k => 'level ' + k)) + '.'),
-    card('Function of a gene', 'The functions of the profile; for a gene they do not list, or without them, the ' +
-      'Reactome top-level pathway holding most genes of the ladder (“Disease” excluded); a gene without a Reactome ' +
-      `pathway in Open Targets: “${D.other_genes}”.`,
-      `${byType('theme').length} functions (${L.themes || 'curated'}).`),
-    card('Design and place of a study', 'The design class from the design the readers quote; the place from the ' +
-      'first author\'s institution (PubMed, else Europe PMC); East Asian when done there or stated by the abstract.',
-      tallyText(count(studies, p => p.a.design_class)) + '.'))));
   // the language models, every rule
-  out.push(det('Language models', 'the three models, one reading from record to graph, the checks, agreement, ' +
+  out.push(det('models', 'Language models', 'the three models, one reading from record to graph, the checks, agreement, ' +
     'every disputed item', ...modelSections()));
-  out.push(det('Every rule', 'the choices registry: each rule with its value in this run and its basis',
+  const file = (part, where, what) => h('tr', {}, h('td', {}, part), h('td', {}, h('code', {}, where)), h('td', {}, what));
+  out.push(det('snapshots', 'Snapshots, reproducibility and files', 'what a snapshot holds, how it is rebuilt, where ' +
+    'each part is', h('ul', {},
+    h('li', {}, `This is the graph of ${S} as of ${m.snapshot}: Open Targets release ${m.release}, PubMed to ` +
+      `${L.fetch_date || m.snapshot}, every publication checked in PubMed on ${m.checked_at}.`),
+    h('li', {}, 'Every download is saved with the snapshot (the Open Targets answers and the PubMed records), so ' +
+      'that it can be rebuilt without fetching again.'),
+    h('li', {}, 'Every model answer is cached by model and prompt, so a rebuild with the same cache gives the same ' +
+      'graph. When a prompt changes (a new rule, or a list of conditions that changed), its answers are asked again ' +
+      'and a few decisions can change; each is listed with its reason.'),
+    h('li', {}, 'A later snapshot of the disease is compared with the one before it: genes, conditions and studies ' +
+      'added, removed or changed.')),
+    h('table', {class: 'plain'}, h('thead', {}, h('tr', {}, ['Part', 'Where', 'What it holds'].map(x =>
+      h('th', {class: 'nosort'}, x)))), h('tbody', {},
+      file('Viewer', `${D.disease.key}_knowledge_graph.html`, 'this page: one file that works offline'),
+      file('Workbook', `${D.disease.key}_knowledge_graph_${m.snapshot}.xlsx`, 'the tables by question, sources in ' +
+        'cell notes; a summary version without the flat appendix tables'),
+      file('Knowledge base', '08.knowledge', 'the graph as Markdown text, one section per question'),
+      file('Graph', '05.graph', 'nodes and edges as TSV, graph.json (NetworkX) and SQLite, with the schema'),
+      file('Tables', '04.tables', 'the tables the graph is built from'),
+      file('Figures', '09.figures', 'the figures, with a catalogue'),
+      file('Readings and decisions', '01.relations, 02.literature, 03.curated', 'the models\' readings, the disputed ' +
+        'items, the consolidation and verification decisions, the curation log'),
+      file('Changes', '07.changes', 'the comparison with the previous snapshot, when there is one'),
+      file('Run record', '_run_info', 'the parameters, the models and the trace of the run')))));
+  out.push(det('rules', 'Every rule', 'the choices registry: each rule with its value in this run and its basis',
     ...D.choices.map(g => h('details', {class: 'cmap-all'}, h('summary', {}, `${g.name} (${g.items.length})`),
       table([{label: 'Rule', get: r => r.item}, {label: 'Value', get: r => r.value}, {label: 'Basis', get: r => r.basis},
              {label: 'References', cell: r => h('span', {}, r.refs.map(([tt, u], k) =>
                h('span', {}, k ? '; ' : '', u ? ext(u, tt) : tt)))}], g.items, {filter: false})))));
+  // the questions this page answers, each pointing to its section; then the sections
+  const QUESTIONS = [
+    ['Where does each fact come from, and how is each source read?', 'sources'],
+    [`Which GWAS signals are regions of ${S}, and how are they named?`, 'regions'],
+    [`Which publications count as genetic studies of ${S}, and what is taken from them?`, 'studies'],
+    ['What does the level of a gene mean, and how is it set?', 'ladder'],
+    [`How does a condition become related to ${S}, and how is its category decided?`, 'relations'],
+    ['Why are the genetics of some conditions “not fetched”?', 'relations'],
+    ['What does each kind of edge mean, and which rule makes it?', 'associations'],
+    ['Where do the language models take part, and how is their work checked?', 'models'],
+    ['How often did the two readers agree, and where is every disagreement?', 'models'],
+    ['Can this snapshot be rebuilt, and where is each file?', 'snapshots'],
+    ['What is the value of each rule, and why was it chosen?', 'rules']];
+  toc.append(h('div', {class: 'toc-h'}, 'Questions this page answers'), ...QUESTIONS.map(([q, k]) =>
+    h('div', {class: 'toc-q'}, h('a', {href: '#/build/' + k}, q))),
+    h('div', {class: 'toc-h'}, 'Sections'), ...SECTIONS.map(([k, t, sub]) => h('div', {},
+    h('a', {href: '#/build/' + k}, t), h('span', {class: 'toc-s'}, sub))));
+  // an address #/build/<section> opens that section and scrolls to it
+  if (sel) requestAnimationFrame(() => { const d = document.getElementById('b-' + sel); if (d) d.scrollIntoView(); });
   return out;
 }
 // the share of the decisive items both readers gave the same answer (studies, findings, methods, relations)

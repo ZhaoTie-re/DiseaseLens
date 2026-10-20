@@ -45,14 +45,8 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ot_common import (NO_GENE, a_, load_glosses, load_status, OTHER_GENES, SHARED_SIGNAL, assign_themes, gene_tallies, load_ladder, relates,  # noqa: E402
-                       load_profile, load_themes, log, not_in_gene_map, num, read_tsv)
+                       category_colors, load_profile, load_themes, log, not_in_gene_map, num, read_tsv)
 
-# colors of the categories of related conditions: the profile's clinical categories in their order, then any other
-# category of the table (both from one list, extended in turn); the ontology category and the shared signal keep
-# their own
-CATEGORY_COLORS = ['#C2627A', '#B08A3C', '#7A5C9E', '#2E8B8B', '#6E8B3D', '#C46B2E', '#A0527F', '#5B7DB1', '#8C6D46',
-                   '#3F8A6E']
-ONTOLOGY_COLOR = '#4D5B6A'
 NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine']
 # short labels of the design classes (config/curation.yaml, design_classes) in the genetic_studies figure
 DESIGN_SHORT = {'genome_wide': 'Genome-wide (GWAS, genome\nsequencing, MR)', 'clonal': 'Clonal hematopoiesis',
@@ -962,10 +956,8 @@ def readme(st, D, C, tidy, a, themes):
 def palette(S, P, cats):
     """The fills of the workbook, so that one color means one thing in every output: kinds of evidence G, G*, C, L
     (gray: several kinds) and the levels of the evidence ladder (GWAS blue, literature association orange, the weaker
-    levels gray); the categories of related conditions take hues of their own (CATEGORY_COLORS)."""
-    clinical = [c for c in cats if c not in (P.ontology_category, SHARED_SIGNAL)]
-    cat = {c: CATEGORY_COLORS[i % len(CATEGORY_COLORS)] for i, c in enumerate(clinical)}
-    cat.update({P.ontology_category: ONTOLOGY_COLOR, SHARED_SIGNAL: S.REFERENCE, 'one region': S.NEUTRAL_D})
+    levels gray); the categories of related conditions take hues of their own (ot_common.category_colors)."""
+    cat = {**category_colors(P, cats), SHARED_SIGNAL: S.REFERENCE, 'one region': S.NEUTRAL_D}
     return {'cat': cat,
             'kind': {'G': '#C6DBEF', 'G*': '#E3EEF8', 'C': '#C7E9C0', 'L': '#FCBBA1'}, 'multi': '#8C8C8C',
             'level': {1: '#C6DBEF', 2: '#E3EEF8', 3: '#FCE4CC', 4: '#FDF2E6', 5: '#F2F2F2', 6: '#F2F2F2',

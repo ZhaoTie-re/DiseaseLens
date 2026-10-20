@@ -464,6 +464,20 @@ class Profile:
 
 
 SHARED_SIGNAL = 'Shared GWAS signal only'
+# colors of the categories of related conditions, one meaning in every output (figures, workbook, viewer): the
+# profile's clinical categories in their order take CATEGORY_COLORS in turn; the ontology category and the shared
+# signal keep their own
+CATEGORY_COLORS = ['#C2627A', '#B08A3C', '#7A5C9E', '#2E8B8B', '#6E8B3D', '#C46B2E', '#A0527F', '#5B7DB1', '#8C6D46',
+                   '#3F8A6E']
+ONTOLOGY_COLOR = '#4D5B6A'
+SHARED_COLOR = '#8A9199'
+
+
+def category_colors(P, cats):
+    """{category: color} for the categories of related conditions (cats, in their order)."""
+    clinical = [c for c in cats if c not in (P.ontology_category, SHARED_SIGNAL)]
+    return {**{c: CATEGORY_COLORS[i % len(CATEGORY_COLORS)] for i, c in enumerate(clinical)},
+            P.ontology_category: ONTOLOGY_COLOR, SHARED_SIGNAL: SHARED_COLOR}
 SHARED_SIGNAL_OLD = 'Shared genetic signal'   # its name in snapshots built before 2026-10-20
 
 
