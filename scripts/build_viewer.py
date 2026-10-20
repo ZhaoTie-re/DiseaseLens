@@ -50,8 +50,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ot_common import (EAS_COUNTRIES, NO_LEVEL, OTHER_GENES, SHARED_SIGNAL, disease_badge,  # noqa: E402
-                       load_choices, load_glosses, load_profile, load_status, log, not_regions_of, not_regions_sentence, read_tsv)
+from ot_common import (EAS_COUNTRIES, NO_LEVEL, OTHER_GENES, RELATION_DESIGNS, SHARED_SIGNAL,  # noqa: E402
+                       disease_badge, load_choices, load_glosses, load_profile, load_status, log, not_regions_of,
+                       not_regions_sentence, read_tsv, relates)
 
 WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve']
 
@@ -118,6 +119,34 @@ def texts(P, regions, ladder, rp, not_regions):
             'curation_lead': P.text('viewer', 'curation_lead', curation)}
 
 
+def condition_evidence(T, G):
+    """What the evidence matrix of the conditions page shows of each related condition: the publications of its
+    clinical evidence that relate it, the best design class among them (RELATION_DESIGNS, by its index), the
+    directions, whether a study found no association, East Asian evidence of the relation, its place in the ontology,
+    and the regions of the disease it shares a signal with, by method ('c' colocalization, 'o' lead-variant overlap)."""
+    rel = read_tsv(T / 'relations.tsv')
+    if 'design_class' not in rel:
+        rel['design_class'] = ''
+    sh = read_tsv(G / 'edges_shares_region.tsv', ['source', 'target', 'method', 'n_signals', 'best', 'measure'])
+    out = {}
+    for n, g in rel.groupby('node_id'):
+        ok = [relates(t, r) for t, r in zip(g.evidence_type, g.relation)]
+        clin = [t == 'clinical' for t in g.evidence_type]
+        cl = g[[c and o for c, o in zip(clin, ok)]]
+        onto = g[g.evidence_type.eq('ontology')].relation.tolist()
+        rank = [RELATION_DESIGNS.index(d) for d in cl.design_class if d in RELATION_DESIGNS]
+        out[n] = {'pubs': cl.pmid.nunique(), 'design': min(rank) if rank else None,
+                  'dirs': sorted(set(cl.relation)), 'contrary': any(c and not o for c, o in zip(clin, ok)),
+                  'ea': any(o and str(x) == 'True' for o, x in zip(ok, g.east_asian)),
+                  'onto': (onto[0].split(' ')[0] if onto else ''), 'onto_text': '; '.join(onto)}
+    for x in sh.itertuples():
+        r = out.setdefault(x.source, {'pubs': 0, 'design': None, 'dirs': [], 'contrary': False, 'ea': False,
+                                      'onto': '', 'onto_text': ''}).setdefault('regions', {})
+        m = 'c' if x.method == 'colocalization' else 'o'
+        r[x.target] = 'c' if r.get(x.target) == 'c' else m
+    return out
+
+
 def model_use(P, T, Q, summ):
     """How the language models were used in this snapshot: the models, the counts of each step that uses them, and
     the disputed items (03.curated/model_review.tsv)."""
@@ -141,10 +170,14 @@ def model_use(P, T, Q, summ):
             # where the clinical relations come from: the profile says (a curated list, or read from PubMed)
             'curated_relations': (P.d.get('relations') or {}).get('mode') == 'curated',
             'extract': {k: ex[k] for k in keep if k in ex},
-            'relations': ({k: rr[k] for k in ('records', 'read', 'not_read', 'relations', 'conditions',
-                                              'mapped_to_open_targets',
+            'relations': ({k: rr[k] for k in ('records', 'read', 'not_read', 'relations', 'conditions_read', 'split',
+                                              'consolidation', 'conditions_consolidated', 'verification',
+                                              'conditions', 'mapped_to_open_targets', 'one_publication',
                                               'agreement', 'disputed_items', 'dropped_items') if k in rr}
                           if rr else None),
+            # the traits a shared signal alone would relate, left out: too few regions shared, a broad class
+            'shared_left_out': {'too_few': tidy.get('shared_signal_too_few_regions') or {},
+                                'broad': tidy.get('shared_signal_broad_classes') or {}},
             'summaries': {'n': len(summ), 'shown': int(summ.grounded.eq('True').sum()),
                           'withheld': int((~made.grounded.eq('True')).sum()), 'not_generated': len(summ) - len(made),
                           'checked': int(summ.check.ne('').sum()) if 'check' in summ else 0},
@@ -209,6 +242,12 @@ def main():
                    'edges': {k: v['meaning'] for k, v in schema['edges'].items()}},
         'ladder': ladder, 'ladder_def': ladder_def, 'ladder_gloss': ladder_gloss, 'level_status': level_status,
         'no_level': P.fill(NO_LEVEL), 'categories': cats, 'shared_signal': SHARED_SIGNAL, 'other_genes': OTHER_GENES,
+        # what each category means (the readers see the clinical ones), and the rule that makes the ontology neighbors
+        'category_desc': P.category_desc, 'ontology_category': P.ontology_category,
+        'cooccurrence': [c['name'] for c in P.categories if c.get('cooccurrence')],
+        'relation_designs': RELATION_DESIGNS, 'cond_evidence': condition_evidence(T, G),
+        'ontology': {k: P.ontology.get(k, True) for k in ('parents', 'siblings', 'children')}
+                    | {'children_of': len(P.ontology.get('children_of') or [])},
         'eas': list(EAS_COUNTRIES),
         # the labels of the region statistics of a published table that only some diseases have
         'region_labels': {'p_pe': cols.get('p_pe') or 'P in the secondary analysis', 'v': cols.get('v') or 'V'},
@@ -374,6 +413,37 @@ svg text { font: 11px sans-serif; fill: var(--ink); }
 .cmap-key span { display: inline-flex; gap: 6px; align-items: center; }
 .cmap-all { margin: 10px 0 4px; }
 .cmap-all summary { cursor: pointer; color: var(--head); font-weight: 600; }
+/* the evidence matrix of the related conditions: counts shaded by bins, the number in the cell */
+table.mx { width: auto; min-width: 100%; font-size: 12.5px; }
+table.mx th, table.mx td { padding: 3px 6px; border-bottom: 1px solid #eef0f3; }
+table.mx tr.mx-g th { text-align: center; font-size: 11.5px; color: var(--ink2); border-bottom: 1px solid var(--line); }
+table.mx th.mx-s { cursor: pointer; } table.mx th.mx-s.on { color: var(--link); text-decoration: underline; }
+table.mx th { cursor: default; vertical-align: bottom; }
+table.mx th.mx-r div { writing-mode: vertical-rl; transform: rotate(180deg); font-style: italic; max-height: 96px;
+  white-space: nowrap; margin: 0 auto; }
+table.mx .mx-name { position: sticky; left: 0; z-index: 1; background: #fff; min-width: 220px; max-width: 320px;
+  white-space: normal; box-shadow: inset -1px 0 0 var(--line); }
+table.mx th.mx-name { background: var(--panel); }
+table.mx tr.mx-cat td { background: var(--panel); padding-top: 9px; font-size: 13px; }
+table.mx tr.mx-cat .dot { margin-right: 6px; }
+.mx-desc { color: var(--ink2); font-size: 12px; }
+table.mx td.mx-n { text-align: center; min-width: 40px; font-variant-numeric: tabular-nums; }
+table.mx td.q1, .mx-sw.q1 { background: #e3edf7; } table.mx td.q2, .mx-sw.q2 { background: #bcd3ea; }
+table.mx td.q3, .mx-sw.q3 { background: #6f9fcf; color: #fff; } table.mx td.q4, .mx-sw.q4 { background: #2f5f8f;
+  color: #fff; }
+table.mx td.g1, .mx-sw.g1 { background: #f1f3f5; } table.mx td.g2, .mx-sw.g2 { background: #dfe3e8; }
+table.mx td.g3, .mx-sw.g3 { background: #c3cad3; } table.mx td.g4, .mx-sw.g4 { background: #9aa5b1; color: #fff; }
+table.mx td.mx-c { text-align: center; } table.mx td.mx-d, table.mx td.mx-o { color: var(--ink2); white-space: nowrap; }
+table.mx td.mx-dir { white-space: nowrap; } table.mx td.mx-dir span { margin-right: 4px; font-weight: 700; }
+.mx-x { color: var(--accent); } .mx-ea { color: #b08a3c; }
+.mx-dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; border: 2px solid #3c6e9f;
+  vertical-align: -1px; } .mx-dot.c { background: #3c6e9f; } .mx-dot.o { background: #fff; }
+table.mx td.mx-nf { color: var(--ink2); font-style: italic; text-align: center; font-size: 12px; }
+table.mx tbody tr:hover td.mx-name { background: var(--hi); }
+.mx-key { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--ink2); margin: 6px 0 2px; }
+.mx-sw { display: inline-block; padding: 0 6px; margin: 0 2px; border-radius: 3px; }
+.guide { font-size: 13px; max-width: 1100px; } .guide h4 { color: var(--head); font-size: 14px; margin: 16px 0 6px; }
+.guide ul { margin: 4px 0; padding-left: 20px; } .guide li { margin: 3px 0; } .guide .stps { margin-top: 6px; }
 /* the page on how the graph is built: at a glance, step by step, in detail */
 .glance { display: grid; grid-template-columns: 1fr 34px 1fr 34px 1fr; align-items: stretch; margin: 14px 0 8px; }
 .gl-col { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px 10px;
@@ -1133,26 +1203,129 @@ function conditionMap(M, focus, pick) {
           `only (${sg.n === 1 ? '' : sg.n_top + ' of them '}` +
           `${sg.top}; weak evidence)` : '') +
     (ns ? `; not shown: ${ns} traits of the shared-signal category with no shared region recorded` : '') +
-    `, of ${related().length} related conditions. How a condition enters the graph and how it is classified: `,
-    h('a', {href: '#/build'}, 'How it is built'), '.');
+    `, of ${related().length} related conditions. How a condition enters the graph and how it is classified: the ` +
+    'section below the map, and ', h('a', {href: '#/build'}, 'How it is built'), '.');
   return h('div', {}, cats, wrap, key, coverage);
+}
+
+// the evidence matrix: one row per related condition, grouped by category, one column per kind of evidence; counts
+// are shaded by bins (1, 2–3, 4–9, 10 or more) so that a condition with a hundred publications does not hide those
+// with one, and the number is in the cell
+const BIN = (v, q = 'q') => !v ? '' : q + (v === 1 ? 1 : v <= 3 ? 2 : v <= 9 ? 3 : 4);
+const DESIGN_SHORT = ['guideline', 'meta-analysis', 'cohort / case-control', 'cross-sectional', 'case report',
+                      'other'];
+const DIR_MARK = {'increased risk': ['↑', 'increased risk'], 'decreased risk': ['↓', 'decreased risk'],
+                  'associated': ['~', 'associated']};
+function catColor(c) {
+  const s = ((D.condition_map || {}).sectors || []).find(x => x.category === c);
+  return s ? s.color : '#8a9199';
+}
+function evidenceMatrix(focus, pick, sortBy, setSort) {
+  const E = D.cond_evidence || {}, conds = related();
+  const regions = byType('region'), perRegion = regions.length && regions.length <= 20;
+  const ev = c => E[c.id] || {pubs: 0, dirs: [], regions: {}};
+  const nReg = c => Object.keys(ev(c).regions || {}).length;
+  const num = v => v === '' || v === undefined || v === null ? null : Number(v);
+  const KEYS = {
+    pubs: c => -ev(c).pubs, design: c => ev(c).design ?? 9, regions: c => -nReg(c),
+    gwas: c => -(num(c.a.n_gwas_studies) ?? -1), genes: c => -(num(c.a.n_mendelian_genes) ?? -1)};
+  const order = (a, b) => (KEYS[sortBy](a) - KEYS[sortBy](b)) || (ev(b).pubs - ev(a).pubs) ||
+    ((ev(a).design ?? 9) - (ev(b).design ?? 9)) || (nReg(b) - nReg(a)) || a.label.localeCompare(b.label);
+  const shown = CATS.filter(k => !focus || focus === 'single' || focus === k);
+  // the header: column groups, then columns (a sortable column says so)
+  const sortTh = (key, label, title) => h('th', {class: 'mx-s' + (sortBy === key ? ' on' : ''), title:
+    (title ? title + '. ' : '') + 'Click to sort each category by this column.', onclick: () => setSort(key)}, label);
+  const regTh = perRegion ? regions.map(r => h('th', {class: 'mx-r', title: r.label}, h('div', {},
+    r.label.replace(/ region$/, '')))) : [sortTh('regions', `${S} regions`, `How many ${S} GWAS regions it shares`)];
+  const head = h('thead', {},
+    h('tr', {class: 'mx-g'}, h('th', {}), h('th', {colspan: 4}, 'Clinical evidence'), h('th', {}, 'Ontology'),
+      regions.length ? h('th', {colspan: perRegion ? regions.length : 1}, `Shared ${S} GWAS regions`) : null,
+      h('th', {colspan: 2}, 'Its own genetics')),
+    h('tr', {}, h('th', {class: 'mx-name'}, 'Condition'),
+      sortTh('pubs', 'Publications', 'Publications whose clinical evidence relates it'),
+      sortTh('design', 'Best design', 'The best design among those publications'),
+      h('th', {title: 'Direction of the relation; ✕: a study found no association'}, 'Direction'),
+      h('th', {title: 'East Asian evidence of the relation'}, 'EA'),
+      h('th', {}, 'Relation'), ...(regions.length ? regTh : []),
+      sortTh('gwas', 'GWAS', 'Its GWAS studies in Open Targets'),
+      sortTh('genes', 'Curated genes', 'Genes with curated gene–disease evidence for it')));
+  const nCols = 8 + (regions.length ? (perRegion ? regions.length : 1) : 0);
+  const body = h('tbody');
+  for (const k of shown) {
+    const rows = conds.filter(c => c.a.category === k).sort(order);
+    if (!rows.length) continue;
+    body.append(h('tr', {class: 'mx-cat'}, h('td', {colspan: nCols}, h('span', {class: 'dot', style:
+      'background:' + catColor(k)}), h('b', {}, `${SHOWN_CAT(k)} (${rows.length})`),
+      D.category_desc[k] ? h('span', {class: 'mx-desc'}, ' · ' + D.category_desc[k]) : null)));
+    for (const c of rows) {
+      const e = ev(c), g = c.a.genetics || 'none';
+      // clinical counts in blue, the condition's own genetics in gray: the matrix is about the relation
+      const cnt = (v, what, q) => v ? h('td', {class: 'mx-n ' + BIN(v, q), title: `${v} ${what}`}, String(v)) :
+        h('td', {class: 'mx-n'});
+      const dirs = Object.keys(DIR_MARK).filter(d => (e.dirs || []).includes(d)).map(d => h('span',
+        {title: DIR_MARK[d][1]}, DIR_MARK[d][0]));
+      if (e.contrary) dirs.push(h('span', {class: 'mx-x', title: 'a study found no association'}, '✕'));
+      const regCells = !regions.length ? [] : perRegion ? regions.map(r => {
+        const m = (e.regions || {})[r.id];
+        return h('td', {class: 'mx-c', title: m ? `${r.label}: ${m === 'c' ? 'colocalization' :
+          'lead-variant overlap'}` : ''}, m ? h('span', {class: 'mx-dot ' + m}) : null);
+      }) : [cnt(nReg(c), `${S} regions shared`)];
+      const own = g === 'full' ? [cnt(num(c.a.n_gwas_studies), 'GWAS studies', 'g'),
+                                  cnt(num(c.a.n_mendelian_genes), 'curated genes', 'g')] :
+        [h('td', {colspan: 2, class: 'mx-nf', title: c.a.genetics_note || ''},
+           g === 'none' ? 'no Open Targets entry' : 'not fetched')];
+      body.append(h('tr', {}, h('td', {class: 'mx-name'}, nodeLink(c.id)),
+        cnt(e.pubs, 'publications'),
+        h('td', {class: 'mx-d', title: e.design !== null && e.design !== undefined ?
+          D.relation_designs[e.design] : ''}, e.design !== null && e.design !== undefined ?
+          DESIGN_SHORT[e.design] : ''),
+        h('td', {class: 'mx-dir'}, dirs), h('td', {class: 'mx-c'}, e.ea ? h('span', {class: 'mx-ea',
+          title: 'East Asian evidence of the relation'}, '◆') : null),
+        h('td', {class: 'mx-o', title: e.onto_text || ''}, e.onto || ''), ...regCells, ...own));
+    }
+  }
+  const key = h('div', {class: 'mx-key'},
+    h('span', {}, 'Publications: ', ...['q1', 'q2', 'q3', 'q4'].map((q, i) => h('span', {class: 'mx-sw ' + q},
+      ['1', '2–3', '4–9', '≥ 10'][i]))),
+    h('span', {}, 'Its own genetics: ', ...['g1', 'g2', 'g3', 'g4'].map((q, i) => h('span', {class: 'mx-sw ' + q},
+      ['1', '2–3', '4–9', '≥ 10'][i]))),
+    h('span', {}, '↑ increased risk · ↓ decreased risk · ~ associated · ', h('span', {class: 'mx-x'}, '✕'),
+      ' a study found no association'),
+    h('span', {}, h('span', {class: 'mx-ea'}, '◆'), ' East Asian evidence'),
+    regions.length ? h('span', {}, h('span', {class: 'mx-dot c'}), ' colocalization ', h('span', {class: 'mx-dot o'}),
+      ' lead-variant overlap') : null,
+    h('span', {}, 'Click a column title to sort each category by it.'));
+  const buttons = h('div', {class: 'cmap-cats'}, h('button', {class: 'btn' + (!focus ? ' on' : ''), onclick: () =>
+    focus && pick(focus)}, `All (${conds.length})`), CATS.filter(k => conds.some(c => c.a.category === k)).map(k =>
+    h('button', {class: 'btn' + (focus === k ? ' on' : ''), onclick: () => pick(k)}, h('span', {class: 'dot',
+      style: 'background:' + catColor(k)}), `${SHOWN_CAT(k)} (${conds.filter(c => c.a.category === k).length})`)));
+  return h('div', {}, buttons, ...hscroll(h('table', {class: 'matrix mx'}, head, body), 'more columns'), key);
 }
 
 function conditionsPage(selected) {
   const M = D.condition_map && (D.condition_map.items.length || D.condition_map.single) ? D.condition_map : null;
   // the selection is part of the address (#/conditions/<category>), so that it can be shared
-  let focus = M && selected && (selected === 'single' ? M.single : M.sectors.some(s => s.category === selected)) ?
-    selected : null;
-  const mapBox = h('div'), listBox = h('div');
-  const members = f => new Set(f === 'single' ? M.single.ids : M.items.filter(i => i.category === f).map(i => i.id));
+  const cats = CATS.filter(k => related().some(c => c.a.category === k));
+  let focus = selected && (selected === 'single' ? M && M.single : cats.includes(selected)) ? selected : null;
+  let sortBy = 'pubs';
+  const matBox = h('div'), mapBox = h('div'), listBox = h('div');
+  // the condition map is drawn when it is opened (a closed box has no size to draw in)
+  const mapDet = M ? h('details', {class: 'cmap-all'}, h('summary', {}, 'Condition map: the same relations drawn ' +
+    `around ${S}`), mapBox) : null;
+  if (mapDet) mapDet.addEventListener('toggle', () => { if (mapDet.open) mapBox.replaceChildren(conditionMap(M,
+    focus, pick)); });
+  const members = f => new Set(f === 'single' ? M.single.ids : related().filter(c => c.a.category === f)
+    .map(c => c.id));
   const pick = f => {
     focus = focus === f ? null : f;
     try { history.replaceState(null, '', '#/conditions' + (focus ? '/' + encodeURIComponent(focus) : '')); }
     catch (e) { /* an address that cannot change: the selection still applies */ }
     draw();
   };
+  const setSort = k => { sortBy = k; matBox.replaceChildren(evidenceMatrix(focus, pick, sortBy, setSort)); };
   const draw = () => {
-    if (M) mapBox.replaceChildren(conditionMap(M, focus, pick));
+    matBox.replaceChildren(evidenceMatrix(focus, pick, sortBy, setSort));
+    if (mapDet && mapDet.open) mapBox.replaceChildren(conditionMap(M, focus, pick));
     const keep = focus ? members(focus) : null, rows = related().filter(c => !keep || keep.has(c.id));
     const name = focus === 'single' ? `Traits sharing a single ${S} GWAS region` : focus ? sectorLabel(M, focus) : '';
     listBox.replaceChildren(h('h3', {}, focus ? `${name} (${rows.length})` : `Every related condition (${rows.length})`,
@@ -1171,9 +1344,205 @@ function conditionsPage(selected) {
   };
   draw();
   return [h('h2', {}, 'Related conditions'), h('p', {class: 'lead'}, `Every condition related to ${S}, with the ` +
-    'kinds of evidence for the relation. In the map, hover over a condition for its evidence and click it to open its ' +
-    'page; select a category (a button or its sector) to list its conditions in the table below.'),
-    mapBox, listBox];
+    'kinds of evidence for the relation: one row per condition, grouped by category, one column per kind of ' +
+    'evidence. Select a category to show only its conditions here and in the table below; click a condition to open ' +
+    'its page, with every piece of its evidence.'),
+    matBox, relationsGuide(), mapDet, listBox];
+}
+
+// how the related conditions are found and classified: the routes into the graph, the steps of the clinical
+// relations (who decides each: a rule, a database or the language models), the categories, the columns of the table
+// and what is left out; the rules are those of every disease, the lines marked with the short name give this snapshot
+function relationsGuide() {
+  const L = D.llm, R = L.relations, P = D.params, conds = related(), cur = L.curated_relations;
+  const n = v => (v ?? 0).toLocaleString(), pv = (k, d) => P[k] ?? d;
+  const model = r => (L.models.find(x => x.role === r) || {}).model || '';
+  const src = c => String(c.a.sources || '').split(' ');
+  const ag = o => o && (o.both || o.adjudicated) ? `${n(o.both)} agreed by both readers, ${n(o.adjudicated)} ` +
+    'adjudicated' : '';
+  const plain = (head, rows) => h('table', {class: 'plain'},
+    h('thead', {}, h('tr', {}, head.map(x => h('th', {class: 'nosort'}, x)))),
+    h('tbody', {}, rows.map(r => h('tr', {}, r.map(x => h('td', {}, x))))));
+  const tags = (...ks) => h('span', {}, ks.map(tag));
+  const code = (...xs) => h('span', {}, xs.map((x, i) => [i ? ', ' : '', h('code', {}, x)]).flat());
+  const O = D.ontology || {}, onto = [O.parents !== false ? `a parent of ${S} (one with more than ` +
+    `${pv('MaxOntologyChildren', 30)} children is too broad a class and gives none)` : '',
+    O.parents !== false && O.siblings !== false ? 'another child of such a parent' : '',
+    O.children !== false ? `a child of ${S}` : '', O.children_of ? 'a child of an entry the profile names' : '']
+    .filter(Boolean);
+  const out = [];
+
+  // ── the routes into the graph ──
+  const nBy = f => conds.filter(f).length;
+  out.push(h('h4', {}, 'Three routes into the graph'), plain(
+    ['Route', 'Decided by', 'A condition enters when', 'Its category', 'Evidence types'], [
+      ['Clinical evidence', tags(cur ? 'profile' : 'model', 'pubmed', 'rule'), `a PubMed abstract states, for ${S} ` +
+        'itself, an association with the condition, quoted verbatim; a study that found no association is kept ' +
+        'beside a relation as contrary evidence, never as one', 'the most frequent category of its evidence rows',
+        code('clinical')],
+      ['Disease ontology', tags('ot', 'rule'), `it is a neighbor of ${S} in the disease ontology: ${onto.join(', or ')}`,
+        `${D.ontology_category}, when it has no clinical evidence`, code('ontology')],
+      ['Shared GWAS signal', tags('ot', 'rule'), `a credible set of one of its GWAS colocalizes with a ${S} GWAS ` +
+        `region (CLPP ≥ ${pv('ClppMin', 0.01)} or H4 ≥ ${pv('H4Min', 0.8)}), or, where a region has no credible set ` +
+        `of ${S}, holds the region's lead variant (PIP ≥ ${pv('OverlapPipMin', 0.1)}). Related by this alone, it ` +
+        `must share at least ${pv('MinSharedRegions', 2)} regions and not be a broad class (more than ` +
+        `${pv('MaxDescendants', 100)} subtypes in the ontology)`, `${SHOWN_CAT(D.shared_signal)}, when neither of ` +
+        'the above relates it', code('colocalization', 'lead-variant overlap')]]),
+    here(`${conds.length} related conditions: ${nBy(c => src(c).includes('clinical'))} by clinical evidence, ` +
+      `${nBy(c => src(c).includes('ontology'))} by the ontology, ${nBy(c => src(c).includes('colocalization') ||
+      src(c).includes('lead-variant'))} by a shared GWAS signal (a condition can have several).`));
+
+  // ── the clinical relations, step by step ──
+  out.push(h('h4', {}, 'Clinical relations, from abstract to condition'));
+  const st = (no, title, ks, text, mine) => h('div', {class: 'stp'}, h('div', {class: 'stp-no'}, no),
+    h('div', {class: 'stp-b'}, h('div', {class: 'stp-h'}, h('b', {}, title), ' ', ks.map(tag)), h('div', {}, text),
+      mine ? here(mine) : null));
+  if (cur) {
+    out.push(h('p', {}, 'The clinical relations come from the curated list of the disease profile, each with its ' +
+      'category and a verbatim quote; no language model reads them. Every quote is checked against its PubMed ' +
+      'abstract at each build, and the build stops if one is not found.'));
+  } else {
+    const C = (R && R.consolidation) || {}, V = (R && R.verification) || {};
+    const WHY = {not_about_disease: `not about ${S}`, no_relation_stated: 'no relation stated',
+                 other_disease_comparison: 'a comparison with another disease only',
+                 consequence_or_finding: 'a consequence or finding', other_form: `another form of ${S}'s parent class`};
+    const dropped = Object.entries(V.rows_dropped || {}).map(([k, v]) => `${WHY[k] || k} ${v}`).join(', ');
+    out.push(h('div', {class: 'stps'},
+      st(1, 'Search', ['pubmed', 'rule'], `The terms of ${S}, and a guideline, consensus statement, meta-analysis, ` +
+        'systematic review, cohort or case-control study, and a relation word (risk, associat*, comorbid*, ' +
+        'complicat*, predispos*, preval*, inciden*), to the snapshot date.', R ? `${n(R.records)} records.` : ''),
+      st(2, 'Reading', ['model'], `Two models read every abstract apart (${model('Reader A')} and ` +
+        `${model('Reader B')}): neither sees the other's answer, and both use only the text given. For each relation ` +
+        'they return the condition as written and its usual name, a category (by its name only, at this step), the ' +
+        'direction, the design, the population, a one-line statement and a verbatim quote. Not a relation: a ' +
+        `consequence, complication or outcome of ${S} or of its treatment, a sign, symptom or finding among its ` +
+        `patients, a treatment, a gene, a demographic attribute, ${S} itself or one of its subtypes, a comparison ` +
+        `between groups of ${S} patients; evidence from animals or cells.`),
+      st(3, 'Source-text check', ['rule'], 'The quote must occur in the abstract word for word, and must name the ' +
+        'condition: its full name, an alias in parentheses, every word of its name, or an abbreviation for it (one the ' +
+        'record defines, or one whose letters the words of the name spell, written out in the same record). The ' +
+        'category and the direction must be among the allowed ones. Any other item is dropped and logged.'),
+      st(4, 'Agreement', ['rule', 'model'], 'A rule compares the two readings of each record by condition, direction ' +
+        `and category. Where they differ, a third model (${model('Adjudicator')}) reads the abstract with both ` +
+        'readings and decides; its answer passes the same source-text check.',
+        R ? `${n(R.relations)} relations: ${ag(R.agreement)}` + (R.not_read ? `; ${n(R.not_read)} records not read ` +
+          '(no model was called, and no answer was cached)' : '') + '.' : ''),
+      st(5, 'Mapping', ['ot', 'rule'], 'A name becomes an Open Targets entry when it equals the entry\'s name or an ' +
+        'exact synonym (a level written with its direction, such as “elevated factor VIII”, also as the measured ' +
+        `trait). A name that maps to an ancestor of ${S} keeps no entry; ${S} itself and its subtypes leave. Names ` +
+        'without an entry that differ only in words of use or exposure are one condition; a name that joins other ' +
+        'listed conditions (“A / B”) is split into them.',
+        R && R.conditions_read ? `${n(R.conditions_read)} conditions` + (R.split ? `; ${n(R.split)} joined ` +
+          `name${R.split > 1 ? 's' : ''} split` : '') + '.' : ''),
+      st(6, 'Consolidation', ['model'], 'Both readers see the whole list (names, entries, categories, statements) ' +
+        'and decide for each condition: keep; merge (the same condition under another name, or the marker that ' +
+        'defines it); feature (a characteristic of another listed condition, such as its severity, type, ' +
+        'provocation, a finding at its diagnosis or its treatment: its evidence moves there); or drop (not a ' +
+        `condition, or a consequence of ${S}). The adjudicator decides where they differ. Categories do not change ` +
+        'here.', C.items ? `${n(C.items)} → ${n(C.conditions)} conditions (` + tallyText({merged: C.merge,
+          attached: C.feature, dropped: C.drop}) + `); ${ag(C.agreement)}.` : ''),
+      st(7, 'Verification', ['model'], 'Both readers judge every evidence row against its quote, with the category ' +
+        `definitions below and the ontology neighbors of ${S}, and the adjudicator decides where they differ. A row ` +
+        `is kept with its category, or dropped as: not about ${S}; no relation stated (background, an aim, a ` +
+        'resemblance); a comparison with another disease only; a consequence or finding among patients; or a ' +
+        `condition that defines another form of ${S}'s parent class. Each condition is then kept, dropped, merged or ` +
+        'attached; a condition left without a row leaves. This is where a row\'s category is settled.',
+        V.conditions_in ? `${n(V.conditions_in)} → ${n(V.conditions)} conditions; rows dropped: ${dropped || 'none'}; ` +
+          `${n(V.rows_recategorized)} rows given another category; ${ag(V.agreement)} (rows and conditions).` : ''),
+      st(8, 'Category and build check', ['rule'], 'A condition takes the most frequent category of its own rows that ' +
+        'relate it (rows that found no association, and rows of a characteristic attached to it, do not vote; of ' +
+        'tied categories, the one met first among its rows). At each build every quote is checked again against the abstract, ' +
+        'and the build stops if one is not found; a condition whose clinical rows all found no association is not ' +
+        'related.', (R ? `${n(R.conditions)} conditions from the literature` : '') + (L.not_related.length ?
+          `; not related: ${L.not_related.join('; ')}` : '') + '.')));
+  }
+
+  // ── the categories ──
+  const tally = count(conds, c => c.a.category);
+  out.push(h('h4', {}, 'Categories'), plain(['Category', 'Meaning', S], CATS.map(c => [h('b', {}, SHOWN_CAT(c)),
+    D.category_desc[c] || '', h('span', {class: 'num'}, n(tally[c] || 0))])),
+    h('div', {class: 'note'}, 'A clinical category comes first; the ontology category is given only to a neighbor ' +
+      'without clinical evidence, and the shared-signal category only to a condition related by nothing else. The ' +
+      'readers see the clinical definitions when they verify each row.' + (D.cooccurrence.length ? ` A condition related only ` +
+      `as ${D.cooccurrence.join(' or ').toLowerCase()} (not an ontology neighbor), by fewer than ` +
+      `${pv('ComorbidityMinPublications', 2)} publications, keeps its relation and its shared signals, but its own ` +
+      'genetics are not fetched: evidence of co-occurrence alone says little about the causes of ' + S + '.' : '')));
+
+  // ── the evidence matrix ──
+  const E = D.cond_evidence || {}, dz = count(conds.filter(c => (E[c.id] || {}).design != null),
+    c => D.relation_designs[E[c.id].design]);
+  out.push(h('h4', {}, 'The evidence matrix'), plain(['Column', 'Meaning'], [
+    ['Publications', 'The publications whose clinical evidence relates it (several statements of one publication ' +
+      'count once; a study that found no association is not counted). The shade gives the bin: 1, 2–3, 4–9, 10 or ' +
+      'more, so that a condition with many publications does not hide those with few; the number is in the cell.'],
+    ['Best design', 'The best design among those publications, in this order: ' + D.relation_designs.join(', ') +
+      '. From the PubMed publication types and MeSH design headings as NLM indexes each record (a case report stays ' +
+      'one); the readers\' design words only for a record not yet indexed. The search asks for these designs, so most ' +
+      'relations rest on cohort or case-control studies; the column sets apart those also stated by a guideline or a ' +
+      'meta-analysis.'],
+    ['Direction', '↑ increased risk, ↓ decreased risk, ~ associated, as the publications state it; ✕ when a study ' +
+      'found no association (shown on its page as contrary evidence).'],
+    ['EA', 'East Asian evidence of the relation: a study done in East Asia or of an East Asian population, or a ' +
+      'shared signal whose two GWAS are mostly East Asian.'],
+    ['Relation', 'Its place in the disease ontology: parent, sibling or child.'],
+    [`Shared ${S} GWAS regions`, 'A filled dot: a credible set of the condition colocalizes with the region; an open ' +
+      'dot: it holds the region\'s lead variant (lead-variant overlap). With more than 20 regions, a count.'],
+    ['Its own genetics', 'GWAS studies and curated genes, as in the table; “not fetched” or “no Open Targets entry” ' +
+      'when its own genetics are not read (the reason on hover and on its page).']]),
+    here('best design: ' + (tallyText(dz, D.relation_designs) || 'none') + '.'));
+
+  // ── the columns of the table ──
+  const gen = count(conds, c => c.a.genetics || 'none');
+  out.push(h('h4', {}, 'The columns of the table below'), plain(['Column', 'Meaning'], [
+    ['Category', 'As above.'],
+    ['Evidence types', h('span', {}, 'The routes that relate it: ', code('clinical'), ' (a quoted relation), ',
+      code('ontology'), ', ', code('colocalization'), ' and ', code('lead-variant overlap'),
+      ' (a shared GWAS signal, by either test); several when several do.')],
+    ['Clinical items', 'The pieces of clinical evidence (quoted statements) that relate it. A study that found no ' +
+      'association is shown on its page as contrary evidence, but not counted.'],
+    [`${S} regions shared`, `The ${S} GWAS regions whose signal it shares, by colocalization or lead-variant overlap.`],
+    ['GWAS studies', 'Its own GWAS studies in Open Targets. Blank, not zero, when its own genetics are not fetched ' +
+      '(the reason is on its page): no Open Targets entry; related only by a shared signal; more than ' +
+      `${pv('MaxGwasStudies', 100)} GWAS studies; a broad class; ` + (D.cooccurrence.length ? 'a ' +
+      `${D.cooccurrence.join(' or ').toLowerCase()} from fewer than ${pv('ComorbidityMinPublications', 2)} ` +
+      'publications.' : '')],
+    ['East Asian GWAS', `Of these, the studies whose sample is at least ${pv('EasMin', 0.5) * 100}% East Asian.`],
+    ['Curated genes', `Genes with curated gene–disease evidence for it (source score ≥ ${pv('MendelianMin', 0.5)}; ` +
+      'ClinVar alone, a pathogenic record of two stars or more).']]),
+    here(`its own genetics fetched in full for ${n(gen.full || 0)} conditions, shared signals only for ` +
+      `${n(gen.coloc_only || 0)}, none for ${n(gen.none || 0)} (no Open Targets entry).`));
+
+  // ── what is left out ──
+  const lo = L.shared_left_out || {}, few = lo.too_few || {}, broad = lo.broad || {};
+  if (few.n || broad.n) {
+    const names = (title, xs) => h('details', {class: 'cmap-all'}, h('summary', {}, title),
+      h('div', {class: 'note'}, xs.join('; ')));
+    out.push(h('h4', {}, 'Left out'), h('p', {}, 'A trait related only by a shared signal is left out when it ' +
+      'shares too few regions, or when it is a broad class (each of its subtypes that shares a signal is listed on ' +
+      'its own).'),
+      few.n ? names(`${S}: ${n(few.n)} trait${few.n > 1 ? 's' : ''} sharing fewer than ${few.min_regions} regions`,
+        few.names || []) : null,
+      broad.n ? names(`${S}: ${n(broad.n)} broad class${broad.n > 1 ? 'es' : ''}`, broad.names || []) : null);
+  }
+
+  // ── where the language models come in ──
+  out.push(h('h4', {}, 'Where the language models come in'), h('ul', {},
+    h('li', {}, cur ? 'Not for the related conditions of this disease: its clinical relations come from a curated ' +
+      'list.' : `They read the abstracts (step 2), adjudicate disagreements (step 4), consolidate the list (step 6) and ` +
+      `verify every row and condition (step 7): readers ${model('Reader A')} and ${model('Reader B')}, adjudicator ` +
+      `${model('Adjudicator')}.`),
+    h('li', {}, 'They never decide the search, the Open Targets entries, the ontology neighbors, the shared signals, ' +
+      'the category vote or which genetics are fetched: rules and databases do.'),
+    h('li', {}, 'Each answer is held to rules: the readers work apart and see only the text given; a quote must be ' +
+      'in its abstract and name its condition; categories, directions, actions and reasons come from fixed lists; a ' +
+      'merge or a feature must name another listed condition. An answer outside these rules is not used, and is ' +
+      'logged.'),
+    h('li', {}, 'Every disputed item is listed with both readings and the decision under ',
+      h('a', {href: '#/build'}, 'How it is built'), ' › Language models and in the curation sheet of the workbook; ' +
+      'every decision of the consolidation and the verification, with its reason, is in the snapshot\'s ' +
+      '01.relations folder.')));
+  return h('details', {class: 'cmap-all'}, h('summary', {}, 'How the related conditions are found and classified'),
+    h('div', {class: 'guide'}, ...out));
 }
 
 function regionsPage() {
@@ -1399,7 +1768,8 @@ function buildPage() {
       'A condition enters by ' +
       'clinical evidence that found an association (a quoted abstract: from a curated list, else read by the models; ' +
       'a study that found none is kept as contrary evidence beside a relation, never as one), by the disease ' +
-      'ontology, or by a GWAS signal shared with the disease; its category follows its strongest evidence.',
+      'ontology, or by a GWAS signal shared with the disease; its category is the most frequent category of its ' +
+      'clinical evidence, else the ontology\'s, else that of a shared signal.',
       `${conds.length} conditions: ${kinds.clinical} by clinical evidence, ${kinds.ontology} by the ontology, ` +
       `${kinds.shared} by a shared signal (a condition can have several); relations ` +
       (L.curated_relations ? 'from the curated list.' : 'read from PubMed' + (R && R.not_read ? ` (${num0(R.not_read)}` +
@@ -1475,7 +1845,7 @@ function buildPage() {
       'else the position.'],
     shares_region: [['ot', 'rule'], `Colocalization with the region (CLPP ≥ ${pv('ClppMin', 0.01)} or H4 ≥ ` +
       `${pv('H4Min', 0.8)}), or, without a credible set of the disease, its lead variant in a credible set of the ` +
-      `condition (PIP ≥ ${pv('ClppMin', 0.01)}).`],
+      `condition (PIP ≥ ${pv('OverlapPipMin', 0.1)}).`],
     in_theme: [['profile', 'ot', 'rule'], 'The gene functions of the profile, else the Reactome top-level pathway ' +
       'that holds most genes of the ladder.'],
     in_pathway: [['ot'], 'The Reactome top-level pathways of a text-mined target.'],
@@ -1495,9 +1865,10 @@ function buildPage() {
   const card = (title, rule, mine) => h('div', {class: 'llm-step'}, h('h4', {}, title), h('p', {}, rule), here(mine));
   out.push(det('Categories and levels', 'how a condition, a gene and a study are classified', h('div',
     {class: 'llm-steps'},
-    card('Category of a related condition', 'From its strongest evidence: a clinical relation gives its category ' +
-      '(curated list, or as the readers gave it and the adjudicator confirmed); ontology only joins the disease group; ' +
-      'a shared GWAS signal only joins “Shared GWAS signal only”.',
+    card('Category of a related condition', 'Clinical evidence first: the most frequent category of its evidence ' +
+      'rows (curated list: as listed; read from PubMed: each row\'s category as the verification settled it); an ' +
+      `ontology neighbor without clinical evidence joins ${D.ontology_category}; a condition related by a shared GWAS ` +
+      'signal only joins “Shared GWAS signal only”. Details on the Related conditions page.',
       tallyText(count(conds, x => SHOWN_CAT(x.a.category)), CATS.map(SHOWN_CAT)) + '.'),
     card('Evidence level of a gene', 'The strongest level it reaches: ' + ladder.join('; ') + '. Levels 3–6 count ' +
       'only findings about the disease itself.',

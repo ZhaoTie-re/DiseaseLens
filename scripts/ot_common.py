@@ -239,6 +239,40 @@ def relates(evidence_type, relation):
     return not (evidence_type == 'clinical' and str(relation).strip().lower() == NO_ASSOCIATION)
 
 
+# the design of the publication behind a clinical relation, best first: from its PubMed publication types and MeSH
+# design headings as NLM indexes them (a case report stays one whatever else it is indexed with); the readers' design
+# words only for a record NLM has not indexed yet
+RELATION_DESIGNS = ['Guideline or consensus', 'Meta-analysis or systematic review', 'Cohort or case-control study',
+                    'Cross-sectional or other observational study', 'Case report', 'Other or not stated']
+PT_GUIDELINE = {'Practice Guideline', 'Guideline', 'Consensus Development Conference',
+                'Consensus Development Conference, NIH'}
+PT_META = {'Meta-Analysis', 'Systematic Review'}
+MESH_COHORT = {'Cohort Studies', 'Longitudinal Studies', 'Follow-Up Studies', 'Prospective Studies',
+               'Retrospective Studies', 'Case-Control Studies', 'Registries'}
+
+
+def relation_design(record, words=''):
+    """The design class (RELATION_DESIGNS) of the record behind a clinical relation."""
+    pt, mesh, w = set(record.get('pub_types') or []), set(record.get('mesh') or []), str(words).lower()
+    if pt & PT_GUIDELINE:
+        return RELATION_DESIGNS[0]
+    if pt & PT_META:
+        return RELATION_DESIGNS[1]
+    if 'Case Reports' in pt:
+        return RELATION_DESIGNS[4]
+    if mesh & MESH_COHORT:
+        return RELATION_DESIGNS[2]
+    if 'Cross-Sectional Studies' in mesh or 'Observational Study' in pt:
+        return RELATION_DESIGNS[3]
+    if not mesh:
+        for i, pat in enumerate((r'guideline|consensus', r'meta-analy|systematic review',
+                                 r'cohort|case-control|case control|follow-up|prospective|retrospective|registry',
+                                 r'cross-sectional|case series|observational', r'case report')):
+            if re.search(pat, w):
+                return RELATION_DESIGNS[i]
+    return RELATION_DESIGNS[5]
+
+
 # the failures a request retries: the network, a timeout, a dropped connection, a response cut short
 # (http.client.IncompleteRead) or a JSON body cut short
 NETWORK_ERRORS = (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException)

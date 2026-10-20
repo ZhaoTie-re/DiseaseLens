@@ -186,16 +186,18 @@ groups:
   items:
   - key: categories
     item: Categories of related conditions
-    value: precursor / spectrum (progresses to the disease, or a stage of one process with it); risk factor (present
-      before it, raising or lowering its risk); comorbidity (more frequent with it, without evidence that it came
-      first); intermediate trait (a measurable level or trait between genotype and disease); the disease group of
-      the ontology; a shared genetic signal only
+    value: precursor / spectrum (progresses to the disease, or a stage of one process with it); risk factor (a
+      disease, exposure, procedure or inherited trait such as a blood group, present before it, raising or lowering
+      its risk); comorbidity (more frequent with it, without evidence that it came first); intermediate trait (a
+      measurable level between genotype and disease, such as a blood level or a biomarker); the disease group of the
+      ontology; a shared genetic signal only
     basis_type: user
     basis: The kinds of clinical relation a guideline or study states, and the neighbors of the disease in its
       ontology, kept apart from relations by a shared genetic signal only. Each evidence row gets its category from
       the readers, checked row by row in the verification; a condition takes the most frequent category of its own
       rows (majority vote, decided with the user, 2026-10-20), the rows of a characteristic attached to it not
-      voting.
+      voting. A blood group is a risk factor, not an intermediate trait (decided with the user, 2026-10-20), since
+      it is present from birth and the clinical literature calls it one; intermediate traits are measured levels.
     used_in: sheet 4; condition map
   - key: relations_source
     item: Source of the clinical relations
@@ -250,6 +252,25 @@ groups:
     basis: A name must equal an entry's name or exact synonym. An ancestor of the disease (hypertensive disorder for a
       form of pulmonary hypertension) names a class the disease belongs to, not a related condition. A condition
       without an entry has one key in every disease, the words of its name without those of use or exposure.
+    used_in: sheet 4
+  - key: relation_design
+    item: Design of the publication behind a clinical relation
+    value: guideline or consensus; meta-analysis or systematic review; cohort or case-control study; cross-sectional
+      or other observational study; case report; other or not stated (best first)
+    basis_type: design
+    basis: From the PubMed publication types and MeSH design headings as NLM indexes each record, so that the design
+      is not the reading of a model; a case report stays one whatever else it is indexed with. The readers' design
+      words count only for a record NLM has not indexed yet. The evidence matrix of the viewer shows the best design
+      among the publications that relate a condition; it is shown, not used to grade or to filter.
+    used_in: viewer (related conditions)
+  - key: joined_names
+    item: A name that joins several conditions
+    value: split into the conditions it joins when each is listed on its own
+    basis_type: user
+    basis: Decided with the user (2026-10-20). A reader can name several conditions at once ('Protein C deficiency /
+      protein S deficiency', from 'protein C and S deficiency'). When every part of such a name is another listed
+      condition, its evidence supports each of them and the joined name is not a condition of its own; otherwise it
+      is kept, and the consolidation decides. Done by rule before the consolidation, without a model.
     used_in: sheet 4
   - key: contrary
     item: Contrary findings

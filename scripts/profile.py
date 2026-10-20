@@ -46,12 +46,12 @@ from ot_common import a_, gql, load_json, log, us_english  # noqa: E402
 CATEGORIES = [
     {'name': 'Precursor / spectrum', 'description': 'Conditions that progress to {short}, or that form stages of one '
                                                     'process with it (not a mere resemblance).'},
-    {'name': 'Risk factor', 'description': 'Diseases, exposures or procedures present before {short} that raise (or '
-                                           'lower) its risk.'},
+    {'name': 'Risk factor', 'description': 'Diseases, exposures, procedures or inherited traits (a blood group) '
+                                           'present before {short} that raise (or lower) its risk.'},
     {'name': 'Comorbidity', 'description': 'Conditions more frequent among {short} patients, or reported with it, '
                                            'without evidence that they came first.', 'cooccurrence': True},
-    {'name': 'Intermediate trait', 'description': 'Measurable levels or traits (a blood level, a biomarker, a blood '
-                                                  'group) between genotype and {short}.'}]
+    {'name': 'Intermediate trait', 'description': 'Measurable levels (a blood level, a biomarker) between genotype '
+                                                  'and {short}.'}]
 DISEASE = '''query($id: String!) { disease(efoId: $id) { id name synonyms { relation terms } } }'''
 KINDS = ('within_disease', 'other_trait', 'functional', 'background')
 

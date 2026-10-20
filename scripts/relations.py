@@ -474,6 +474,45 @@ def apply_decisions(conds, keys, final, agree, logs, step):
     return out, fin
 
 
+# the words that join conditions in one name ('Protein C deficiency / protein S deficiency', 'A and/or B')
+JOINS = r'\s*/\s*|\s*;\s*|\s*,\s*|\s+and/or\s+|\s+or\s+|\s+and\s+'
+
+
+def split_joined(conds, logs):
+    """A condition without an Open Targets entry whose name joins other conditions of the list ('Protein C deficiency
+    / protein S deficiency' beside both) is those conditions: each of its rows joins every one of them, its statement
+    starting with the name it was read under, and it leaves the list. Split only when every part of the name is
+    another listed condition (by its name or an alias, as name_forms reads them), never on a part alone. ->
+    (conditions, {name: [the names it was split into]})"""
+    forms = {}
+    for k, c in conds.items():
+        for f in name_forms(c['name']):
+            forms.setdefault(f, set()).add(k)
+    split = {}
+    for k, c in conds.items():
+        parts = [x for x in re.split(JOINS, c['name']) if x.strip()]
+        if c['ot_ids'] or len(parts) < 2:
+            continue
+        into = []
+        for x in parts:
+            hit = {t for f in name_forms(x) for t in forms.get(f, ()) if t != k}
+            if len(hit) != 1:
+                break
+            into.append(hit.pop())
+        else:
+            if len(set(into)) == len(parts):
+                split[k] = into
+    for k, into in split.items():
+        c = conds.pop(k)
+        for t in into:
+            for part in ('evidence', 'east_asian'):
+                conds[t][part] += [dict(e, statement=f'{c["name"]}: {e["statement"]}') for e in c[part]]
+            conds[t].setdefault('years', set()).update(c.get('years') or set())
+        logs.append({'pmid': '', 'item': c['name'], 'why': 'split into ' + ', '.join(f'"{conds[t]["name"]}"'
+                     for t in into) + ': its name joins them', 'value': '', 'reader': ''})
+    return conds, {k: [conds[t]['name'] for t in into] for k, into in split.items()}
+
+
 def consolidate(conds, readers, adj, P, logs):
     """The conditions after the readers' decisions on the list (see consolidation_prompt, decide in llm.py, and
     apply_decisions): (conditions, review rows, table rows, counts)."""
@@ -784,6 +823,7 @@ def main():
         (c['east_asian'] if ea else c['evidence']).append(e)
         c.setdefault('years', set()).add(r['year'])
     n_read = len(conds)
+    conds, split = split_joined(conds, logs)
     conds, review_c, table_c, counts_c = consolidate(conds, readers, adj, P, logs)
     review += review_c
     n_consolidated = len(conds)
@@ -813,7 +853,7 @@ def main():
     not_read = sum(all(x is None for x in readings[r['pmid']]) for r in recs)
     unanswered = sum(1 for x in logs if x.get('item') == 'record' and x.get('value') == 'no answer')
     stats = {'records': len(recs), 'read': len(recs) - not_read, 'not_read': not_read,
-             'relations': len(rows), 'conditions_read': n_read, 'consolidation': counts_c,
+             'relations': len(rows), 'conditions_read': n_read, 'split': len(split), 'consolidation': counts_c,
              'conditions_consolidated': n_consolidated, 'verification': counts_v, 'siblings': siblings,
              'conditions': len(seed['conditions']),
              'mapped_to_open_targets': sum(1 for c in seed['conditions'] if c['ot_ids']),

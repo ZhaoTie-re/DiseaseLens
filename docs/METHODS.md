@@ -335,8 +335,10 @@ flowchart TD
 - **Mapping.** A condition maps to the Open Targets disease whose name or exact synonym matches (case, spaces,
   hyphens and spelling aside); names mapped to one entry are one condition. Names without an entry are merged when
   they differ only by words of use or exposure, or by an alias in parentheses; an abbreviation never merges two
-  conditions (PE is pulmonary embolism and pleural effusion). The disease itself and its `evidence_also` entries are
-  never related conditions.
+  conditions (PE is pulmonary embolism and pleural effusion). A name without an entry that joins other conditions of
+  the list ("Protein C deficiency / protein S deficiency" beside both) is split: each of its rows supports each of
+  them, and it leaves the list; a name whose parts are not all listed is kept. The disease itself and its
+  `evidence_also` entries are never related conditions.
 - **Consolidation.** The readers read one record at a time, so one condition can come out under several names, and a
   characteristic of a related condition can come out as a condition of its own. Once the conditions are mapped, the
   two readers each read the whole list (every condition with its name, Open Targets entry, category and statements)
@@ -378,6 +380,11 @@ flowchart TD
   is a class a form of pulmonary hypertension belongs to, not a related condition), and one that maps to a
   descendant is one of the disease's own subtypes and left out. A condition without an entry has one key in every
   disease (the words of its name without those of use or exposure).
+- **Design of the evidence.** Each clinical relation carries the design of its publication, best first: guideline
+  or consensus; meta-analysis or systematic review; cohort or case-control study; cross-sectional or other
+  observational study; case report; other. It comes from the PubMed publication types and MeSH design headings as
+  NLM indexes the record (a case report stays one), and from the readers' design words only for a record not yet
+  indexed. It is shown (the viewer's evidence matrix), never used to grade or filter.
 - **No association is not an association.** A condition enters by clinical evidence only through a relation that
   found an association. A study that found none is kept, labeled, beside the relations of a condition related
   otherwise, but does not count.
@@ -434,8 +441,18 @@ do.
 
 ### Categories
 
-Clinical relations take a category: precursor / spectrum, risk factor, comorbidity, or intermediate trait (a
-profile can name its own). Ontology neighbors form their own
+Clinical relations take a category (a profile can name its own):
+
+| Category | The condition … |
+|---|---|
+| Precursor / spectrum | progresses to the disease, or forms stages of one process with it |
+| Risk factor | is a disease, exposure, procedure or inherited trait (a blood group) present before the disease that raises or lowers its risk |
+| Comorbidity | is more frequent among the disease's patients, or reported with it, without evidence that it came first |
+| Intermediate trait | is a measurable level (a blood level, a biomarker) between genotype and the disease |
+
+The readers see these definitions when they verify each row. A blood group, though a direct readout of a genotype,
+is a risk factor: it is present from birth, and the clinical literature calls it one (CTEPH: non-O blood group).
+Ontology neighbors form their own
 category (default "Disease group"), and traits related only by a shared GWAS signal are grouped as "Shared GWAS
 signal only".
 
@@ -635,7 +652,7 @@ long table. `05.graph/README.md` of each snapshot lists every column, with count
 
 | Product | Built by | What it is |
 |---|---|---|
-| Viewer | `build_viewer.py` | One offline HTML file: overview with the evidence ladder, lists of genes, conditions, regions and studies, the curation, a "How it is built" page that applies this document to the disease, and a page per node with its neighbors and every edge with its source link. |
+| Viewer | `build_viewer.py` | One offline HTML file: overview with the evidence ladder, lists of genes, conditions, regions and studies, the curation, a "How it is built" page that applies this document to the disease, and a page per node with its neighbors and every edge with its source link. The related-conditions page shows an evidence matrix (one row per condition, grouped by category; publications, best design, direction, East Asian evidence, ontology relation, each shared GWAS region, the condition's own GWAS and curated genes; counts shaded by bins, so that a condition with a hundred publications does not hide those with one) and explains, in a collapsible section, how its conditions entered, how they were classified, what each column means and where the language models took part, with the disease's own counts at each step. |
 | Workbook | `write_table.py` | An Excel workbook organized by question in four parts (A genetics of the disease, B related conditions, C context, D provenance); each sheet opens with its answer in brief, then a nested table (group › record › source) with source passages in cell notes. A summary version omits the flat appendix tables. |
 | Knowledge base | `build_knowledge.py` | Markdown and JSON in the order of the workbook, with the figures embedded. |
 | Figures | `draw_figures.py` | Evidence grid (level × function), genetic studies over time, literature genes, condition map, shared regions, gene map; PNG and PDF with a catalog. A figure without data is left out and the catalog says why. |

@@ -57,7 +57,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from llm import in_text  # noqa: E402
 from ot_common import (SHARED_SIGNAL, disease_regions, gql, load_json, load_profile, log, relates,  # noqa: E402
-                       shared_relations,
+                       relation_design, shared_relations,
                        write_tsv)
 
 DISEASES = '''query($ids: [String!]!) { diseases(efoIds: $ids) { id name description parents { id name }
@@ -75,8 +75,8 @@ OV_COLS = ['disease_locus', 'disease_gene', 'variant_id', 'node_id', 'condition'
 COND_COLS = ['node_id', 'name', 'category', 'ot_ids', 'genetics', 'genetics_note', 'mendelian', 'genes', 'seed_key',
              'sources', 'support', 'n_descendants', 'broad_class']
 DESCENDANTS = '''query($ids: [String!]!) { diseases(efoIds: $ids) { id descendants } }'''
-REL_COLS = ['node_id', 'evidence_type', 'relation', 'detail', 'quote', 'design', 'population', 'east_asian', 'pmid',
-            'citation', 'strength', 'loci', 'n_loci', 'n_studies', 'agreement']
+REL_COLS = ['node_id', 'evidence_type', 'relation', 'detail', 'quote', 'design', 'design_class', 'population',
+            'east_asian', 'pmid', 'citation', 'strength', 'loci', 'n_loci', 'n_studies', 'agreement']
 
 
 def records(api, ids):
@@ -159,6 +159,7 @@ def main():
                 continue
             rel.append({'node_id': node, 'evidence_type': 'clinical', 'relation': e.get('direction', ''),
                         'detail': e['statement'], 'quote': e['quote'], 'design': e.get('design', ''),
+                        'design_class': relation_design(r, e.get('design', '')),
                         'population': e.get('population', ''), 'east_asian': bool(e.get('east_asian')),
                         'pmid': str(e['pmid']), 'citation': f'{r["first_author"]} {r["year"]}, {r["journal"]}',
                         'strength': '', 'loci': '', 'agreement': e.get('agreement', 'curated')})
@@ -374,6 +375,7 @@ def main():
     C = pd.DataFrame(conds.values(), columns=COND_COLS)
     C['sources'] = C.sources.map(lambda s: ' '.join(sorted(s)))
     R = pd.DataFrame(rel, columns=REL_COLS)
+    R['design_class'] = R.design_class.fillna('')
     # clinical items that relate the condition (contrary findings, kept beside them, are not counted)
     rel_clin = R[(R.evidence_type == 'clinical')
                  & pd.Series([relates(t, r) for t, r in zip(R.evidence_type, R.relation)], index=R.index, dtype=bool)]

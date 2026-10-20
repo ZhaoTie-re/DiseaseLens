@@ -23,9 +23,9 @@ own computer, offline (see below).
 
 | Disease | Open Targets ID | Snapshot | Genes on the evidence ladder | Genetic studies | Related conditions | GWAS regions | Nodes / edges |
 |---|---|---|---:|---:|---:|---:|---:|
-| **CTEPH**, chronic thromboembolic pulmonary hypertension | [EFO_0022954](https://platform.opentargets.org/disease/EFO_0022954) | 2026-10-19 | 66 | 48 | 89 | 9 | 5,425 / 9,092 |
-| **HPAH**, heritable pulmonary arterial hypertension | [MONDO_0017148](https://platform.opentargets.org/disease/MONDO_0017148) | 2026-10-19 | 45 | 113 | 15 | 0 | 1,535 / 3,665 |
-| **IPAH**, idiopathic pulmonary arterial hypertension | [MONDO_0001999](https://platform.opentargets.org/disease/MONDO_0001999) | 2026-10-20 | 77 | 141 | 29 | 0 | 2,690 / 6,115 |
+| **CTEPH**, chronic thromboembolic pulmonary hypertension | [EFO_0022954](https://platform.opentargets.org/disease/EFO_0022954) | 2026-10-19 | 66 | 48 | 89 | 9 | 5,394 / 9,068 |
+| **HPAH**, heritable pulmonary arterial hypertension | [MONDO_0017148](https://platform.opentargets.org/disease/MONDO_0017148) | 2026-10-19 | 45 | 113 | 15 | 0 | 1,535 / 3,669 |
+| **IPAH**, idiopathic pulmonary arterial hypertension | [MONDO_0001999](https://platform.opentargets.org/disease/MONDO_0001999) | 2026-10-20 | 77 | 141 | 28 | 0 | 2,687 / 6,111 |
 | **PVOD/PCH**, pulmonary veno-occlusive disease and/or pulmonary capillary haemangiomatosis | [MONDO_0018554](https://platform.opentargets.org/disease/MONDO_0018554) | 2026-10-20 | 16 | 51 | 19 | 0 | 401 / 930 |
 
 All four use Open Targets release 26.09. A disease with no GWAS in Open Targets has no GWAS region; its genes come
@@ -47,7 +47,7 @@ flowchart LR
 
 ### 1. Download
 
-The graphs are published as one file, `diseaselens-results.zip` (46 MB; 135 MB unpacked), attached to the
+The graphs are published as one file, `diseaselens-results.zip` (46 MB; 137 MB unpacked), attached to the
 [latest release](https://github.com/ZhaoTie-re/DiseaseLens/releases/latest).
 
 macOS or Linux:
