@@ -1,7 +1,7 @@
 # The disease profile of pulmonary veno-occlusive disease and/or pulmonary capillary haemangiomatosis, written by scripts/new_disease.py from Open Targets 26.09.
 # Every value below follows the rule given beside it; edit any of them, then run the pipeline. Only `id`
 # is required; the related conditions, GWAS regions, gene themes and curation follow the defaults of the
-# pipeline (README, "Add a disease").
+# pipeline (docs/USAGE.md, "Add a disease").
 id: MONDO_0018554            # the Open Targets disease ID (required)
 name: 'pulmonary veno-occlusive disease and/or pulmonary capillary haemangiomatosis'     # its Open Targets name
 short: 'PVOD/PCH'          # the short names of the diseases the name joins ("A and/or B"), joined by "/"

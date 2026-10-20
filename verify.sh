@@ -156,7 +156,7 @@ sys.exit(1 if bad else 0)
 EOF
   ck "$k: choices with basis and references; seed, regions, themes and curation entries valid" $?
 done
-for f in README.md docs/METHODS.md docs/OUTPUTS.md docs/STUDY_NOTES.md conf/local.config.example; do
+for f in README.md docs/METHODS.md docs/USAGE.md conf/local.config.example; do
   [ -s "$f" ]; ck "$f present" $?
 done
 
@@ -208,6 +208,9 @@ echo "═══ 7. $k $SN: run records ═══"
 [ -s "$D/_run_info/run_manifest.json" ] && [ -s "$P" ]; ck "run manifest and profile present" $?
 $PY -c "import json,sys; m=json.load(open(sys.argv[1])); sys.exit(1 if m.get('smoke') else 0)" "$D/_run_info/run_manifest.json"
 ck "a full snapshot (no smoke settings)" $?
+# the run manifest travels with the snapshot: no path, user or group name of the machine that ran it
+grep -qE "(/home/|/Users/|/tmp/|$(dirname "$C")|\b$(whoami)\b|\b$(id -gn)\b)" "$D/_run_info/run_manifest.json"
+ck "no machine path, user or group name in the run manifest" $([ $? -eq 1 ] && echo 0 || echo 1)
 
 echo "═══ 8. $k $SN: tables and evidence ═══"
 $PY - "$D" "$P" <<'EOF'

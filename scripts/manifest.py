@@ -201,8 +201,8 @@ def index(P, snap, workbook, tidy, cur, schema, run, wb, example):
            ', '.join(f'{k} {v}' for k, v in graph['counts']['nodes'].items()) + ').', '',
            '## Folders, in the order the pipeline writes them', '', '| Folder | Content |', '|---|---|']
     md += [f'| `{f}` | {c} |' for f, c in folders(P)]
-    md += ['', 'Methods, outputs and the basis of every choice: the component README and `docs/` '
-           '(METHODS.md, OUTPUTS.md); every choice is also in ' +
+    md += ['', 'How the graph is built: `docs/METHODS.md` of the DiseaseLens repository; every choice, with its '
+           'value and basis, is also in ' +
            (f'sheet {choices} of the workbook.' if choices else 'the workbook.'), '']
     return '\n'.join(md)
 

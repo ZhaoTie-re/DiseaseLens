@@ -5,7 +5,7 @@ nextflow.enable.dsl = 2
 // to it, and the genetics of both, as a dated, traceable knowledge graph (one
 // snapshot per disease and fetch date, each compared with the snapshot before
 // it). A disease is a folder diseases/<key>/ whose profile.yaml names its Open
-// Targets ID; everything else has a default (README, "Add a disease").
+// Targets ID; everything else has a default (docs/USAGE.md, "Add a disease").
 //
 // External knowledge only: Open Targets (GraphQL), PubMed (E-utilities) and
 // Europe PMC. One line of stages per disease:
@@ -41,7 +41,7 @@ nextflow.enable.dsl = 2
 // (in the snapshot's own release); the readers answer from the cache, and only
 // answers not yet cached are asked (none with --LlmOffline true).
 // Every process is local: compute nodes may have no internet.
-// Methodology: docs/METHODS.md. Outputs: docs/OUTPUTS.md.
+// How the graph is built: docs/METHODS.md. How to run it for a disease: docs/USAGE.md.
 // ═════════════════════════════════════════════════════════════════════════════
 
 // ---- Helpers
@@ -51,6 +51,13 @@ def script_file(String name) {
 
 def toJson(x) {
     return groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(x))
+}
+
+// the command line of a run without the paths of the machine that ran it: the repository as <repository>, the home
+// folder as ~, and any other absolute path (a params file, a results folder) as its file name
+def publicCommand(String line, String repo, String home) {
+    return line.replace(repo, '<repository>').replace(home, '~').tokenize(' ')
+        .collect { t -> t.replaceAll(/^(.*?=)?\/(?:[^\/]+\/)*([^\/]+)$/, '$1$2') }.join(' ')
 }
 
 def flag(v) {
@@ -72,7 +79,7 @@ def diseaseSpecs() {
         }
         def dir = file("${params.diseases_dir}/${key}")
         if (!file("${dir}/profile.yaml").exists()) {
-            error "DiseaseLens | ${key}: no ${dir}/profile.yaml (README, 'Add a disease')"
+            error "DiseaseLens | ${key}: no ${dir}/profile.yaml (docs/USAGE.md, 'Add a disease')"
         }
         def root = "${params.results_root}/${key}/snapshots"
         def earlier = file(root).exists()
@@ -858,7 +865,7 @@ workflow {
     def run = [
         launched  : workflow.start.toString(),
         session   : workflow.sessionId.toString(),
-        command   : workflow.commandLine.replace(projectDir.toString(), '<repository>').replace(System.getProperty('user.home'), '~'),
+        command   : publicCommand(workflow.commandLine, projectDir.toString(), System.getProperty('user.home')),
         nextflow  : workflow.nextflow.version.toString(),
         params    : runParams,
         readers   : readersText(),

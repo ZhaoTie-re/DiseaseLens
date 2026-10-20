@@ -1,7 +1,7 @@
 # The disease profile of idiopathic pulmonary arterial hypertension, written by scripts/new_disease.py from Open Targets 26.09.
 # Every value below follows the rule given beside it; edit any of them, then run the pipeline. Only `id`
 # is required; the related conditions, GWAS regions, gene themes and curation follow the defaults of the
-# pipeline (README, "Add a disease").
+# pipeline (docs/USAGE.md, "Add a disease").
 id: MONDO_0001999            # the Open Targets disease ID (required)
 name: 'idiopathic pulmonary arterial hypertension'     # its Open Targets name
 short: 'IPAH'          # the shortest acronym among the exact synonyms in Open Targets that spells the name

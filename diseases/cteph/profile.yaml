@@ -1,5 +1,5 @@
 # The disease profile of CTEPH, the first application of DiseaseLens. Only `id` is required for a disease; every
-# other field has a default (README, "Add a disease"). CTEPH sets its names and its PubMed query here so that the
+# other field has a default (docs/USAGE.md, "Add a disease"). CTEPH sets its names and its PubMed query here so that the
 # language-model prompts stay exactly those of its first build (2026-10-16), whose cached answers are reused.
 id: EFO_0022954
 name: chronic thromboembolic pulmonary hypertension

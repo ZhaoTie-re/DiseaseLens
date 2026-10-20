@@ -7,8 +7,8 @@
 # Rules (ot_common.assign_themes):
 #   - a gene belongs to the first theme that lists it;
 #   - a finding without a gene symbol joins the first theme whose genes or `words` occur in its gene text;
-#   - other genes are listed as "Other genes" (logged by the build, so that a new snapshot's genes can be placed
-#     here) and findings without any gene as "No gene named".
+#   - a gene no theme lists joins its Reactome top-level pathway (ot_common.themes_with_fallback); a gene without
+#     one is listed as "No Reactome pathway", and findings without any gene as "No gene named".
 themes:
 - key: fibrinogen
   name: Fibrinogen

@@ -357,8 +357,8 @@ def readme(schema, meta, tables, P, example):
           '| File | Content |', '|---|---|',
           '| `nodes.tsv`, `edges.tsv` | every node (id, type, label, url) and edge (source, target, type) |',
           '| `nodes_<type>.tsv`, `edges_<type>.tsv` | one table per type, with the columns below |',
-          '| `graph.json` | node-link JSON (`networkx.node_link_graph(json.load(f), edges="edges")`); edges without '
-          'their source quotes |',
+          '| `graph.json` | node-link JSON, edges under "edges" (NetworkX 3.4+: `node_link_graph(json.load(f), '
+          'edges="edges")`; earlier: `link="edges"`); edges without their source quotes |',
           '| `schema.json` | the types below, their counts and the evidence ladder |',
           f'| `{P.stem}.sqlite` | the node and edge tables (`node_<type>`, `edge_<type>`, `nodes`, '
           '`edges`), every curated table (`curated_<name>`) and long table (`table_<name>`), and `meta` |', '',

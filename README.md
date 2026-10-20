@@ -1,249 +1,261 @@
 # DiseaseLens
 
-**Dated, traceable knowledge graphs of the genetics of a disease and of the conditions related to it, for any disease
-in Open Targets.**
+**Dated, traceable knowledge graphs of the genetics of a disease and of the conditions related to it, for any
+disease in Open Targets.**
 
-Give DiseaseLens the Open Targets ID of a disease. It collects what public sources say about the disease's genetics,
-reads the genetic literature with language models, checks every item against its source text, and writes one dated
-snapshot per disease: an offline viewer, a workbook organized by question, a knowledge base with figures, and the
-graph as tables, JSON and SQLite. Several diseases can be built in one run.
+DiseaseLens starts from an Open Targets disease ID. It gathers what public sources hold on the disease's genetics,
+has two language models read the genetic literature independently (a third adjudicates where they differ), checks
+every item against its source text, and writes one dated snapshot per disease: an offline viewer, a workbook
+organized by question, a knowledge base with figures, and the graph as tables, JSON and SQLite.
 
-## What the graph holds
+This repository holds the pipeline. The knowledge graphs already built with it can be downloaded and opened on your
+own computer, offline (see below).
 
-- **Genes of the disease**, each on an evidence ladder of seven levels, the same for every disease (strongest level
-  wins; an empty level says why):
+![The viewer: overview of the CTEPH knowledge graph, with its evidence ladder](docs/img/viewer-overview.png)
 
-  | Level | Code | Name | Definition |
-  |---|---|---|---|
-  | 1 | G / C | Genome-wide or curated evidence | a gene of a genome-wide significant GWAS region of the disease (G), or with curated gene–disease evidence for it (C) |
-  | 2 | G\* | Secondary GWAS analysis | a gene of a region significant only in a secondary analysis of a published GWAS |
-  | 3 | | Replicated association | associated in two or more genetic studies |
-  | 4 | | Single-study association | associated in one genetic study |
-  | 5 | | Variant reported, not tested | a variant reported in patients, without an association test |
-  | 6 | | Tested, not associated | tested and not associated in any study |
-  | 7 | | No result about the disease itself | named in a study without a result about the disease itself (the reason is given for each gene) |
-
-  Levels 3–6 count only findings about the disease itself; a finding about an outcome among patients is kept and
-  marked, and does not raise a level.
-- **Genetic studies of the disease**, with design, place, sample sizes, findings and methods, each finding with its
-  source sentence.
-- **Related conditions**, each with its evidence: a verbatim quote of a PubMed abstract (clinical), the disease
-  ontology, or a GWAS signal shared with a region of the disease. A study that found no association is shown as such
-  and never relates a condition.
-- **Shared genetics**: the regions and genes the disease shares with each condition, and the condition's own GWAS
-  and curated genes.
-- **Context**: mechanism themes of the text-mined literature, and the evidence from East Asian populations.
-
-The graph has 7 node types (condition, gene, region, publication, GWAS study, theme, pathway) and 12 edge types;
-every edge keeps its evidence and its source (PMID or database record).
-
-## Sources and method, in brief
-
-| Source | What it gives |
+| Document | For |
 |---|---|
-| [Open Targets Platform](https://platform.opentargets.org) (GraphQL API) | the disease and its ontology; targets and text-mined literature; GWAS studies, credible sets, locus-to-gene scores and colocalizations; curated gene–disease evidence (ClinGen, Gene2Phenotype, PanelApp, Orphanet, ClinVar, UniProt, gene burden); the same for each related condition |
-| PubMed (NCBI E-utilities) | the genetic studies of the disease; the clinical relations (guidelines, reviews, cohort and case-control studies); the record of every publication the graph uses |
-| Europe PMC | the Methods sections of open-access full texts; affiliations PubMed lacks |
-| Ensembl REST | the position of a published lead variant that Open Targets does not index |
+| This README | getting the prebuilt knowledge graphs, opening and querying them |
+| [docs/METHODS.md](docs/METHODS.md) | how a knowledge graph is built, step by step, with every rule |
+| [docs/USAGE.md](docs/USAGE.md) | building the knowledge graph of another disease |
 
-1. **Profile.** The disease is its Open Targets ID; its names and PubMed terms are derived from the record, each with
-   its rule.
-2. **Sources.** Open Targets is read in its current release; PubMed is searched for the records it held on the fetch
-   date. Everything fetched is saved with the snapshot.
-3. **Related conditions.** Clinical relations are taken from a curated list when the disease has one, else read from
-   PubMed by the model readers; the ontology neighbors and the colocalizations with the disease's GWAS regions are
-   added by rule.
-4. **Literature.** A rule pre-screen; then every record is read by **two language models that never see each other's
-   answer**; a **third model adjudicates** where they differ; every gene, variant, number and quote must occur in the
-   source text, or the item is dropped and logged.
-5. **Curation** by rule: retracted articles and conference material are left out; each study gets its place and
-   design class; each variant one name; each finding what it is about; text-mined links to the wrong gene are removed.
-6. **Tables and ladder**, **graph**, then the **products**, with summaries written by one model, checked claim by claim
-   by the other, and ruled on by the adjudicator.
+## Prebuilt knowledge graphs
 
-Every threshold and list is a parameter or a configuration file, recorded in each snapshot with its value and its
-basis (the choices registry). The full methods are in [docs/METHODS.md](docs/METHODS.md), every output file in
-[docs/OUTPUTS.md](docs/OUTPUTS.md), and the design decisions with their history in
-[docs/STUDY_NOTES.md](docs/STUDY_NOTES.md).
+| Disease | Open Targets ID | Snapshot | Genes on the evidence ladder | Genetic studies | Related conditions | GWAS regions | Nodes / edges |
+|---|---|---|---:|---:|---:|---:|---:|
+| **CTEPH**, chronic thromboembolic pulmonary hypertension | [EFO_0022954](https://platform.opentargets.org/disease/EFO_0022954) | 2026-10-19 | 67 | 49 | 136 | 9 | 3,040 / 5,750 |
+| **HPAH**, heritable pulmonary arterial hypertension | [MONDO_0017148](https://platform.opentargets.org/disease/MONDO_0017148) | 2026-10-19 | 45 | 113 | 17 | 0 | 1,537 / 3,671 |
+| **IPAH**, idiopathic pulmonary arterial hypertension | [MONDO_0001999](https://platform.opentargets.org/disease/MONDO_0001999) | 2026-10-20 | 77 | 141 | 56 | 0 | 3,691 / 7,669 |
+| **PVOD/PCH**, pulmonary veno-occlusive disease and/or pulmonary capillary haemangiomatosis | [MONDO_0018554](https://platform.opentargets.org/disease/MONDO_0018554) | 2026-10-20 | 16 | 51 | 24 | 0 | 1,386 / 2,008 |
 
-## Build the knowledge graph of your disease
+All four use Open Targets release 26.09. A disease with no GWAS in Open Targets has no GWAS region; its genes come
+from curated gene–disease evidence and the genetic literature.
 
-### 1. Install
+## Get the knowledge graphs on your computer
+
+```mermaid
+flowchart LR
+    D["1 · Download<br/>one zip file"] --> U["2 · Unzip<br/>results/"]
+    U --> O["3 · Open<br/>results/index.html"]
+    U --> S["Serve<br/>a local web server"]
+    U --> Q["Query<br/>kg.py · SQLite · Python · R"]
+    classDef step fill:#e3eef8,stroke:#1f4e79,color:#1f2328
+    classDef out fill:#e6f2ea,stroke:#4f8a68,color:#1f2328
+    class D,U step
+    class O,S,Q out
+```
+
+### 1. Download
+
+The graphs are published as one file, `diseaselens-results.zip` (46 MB; 161 MB unpacked), attached to the
+[latest release](https://github.com/ZhaoTie-re/DiseaseLens/releases/latest).
+
+macOS or Linux:
+
+```bash
+curl -LO https://github.com/ZhaoTie-re/DiseaseLens/releases/latest/download/diseaselens-results.zip
+curl -LO https://github.com/ZhaoTie-re/DiseaseLens/releases/latest/download/diseaselens-results.zip.sha256
+shasum -a 256 -c diseaselens-results.zip.sha256      # Linux: sha256sum -c diseaselens-results.zip.sha256
+unzip diseaselens-results.zip                         # creates results/
+```
+
+Windows (PowerShell):
+
+```powershell
+Invoke-WebRequest https://github.com/ZhaoTie-re/DiseaseLens/releases/latest/download/diseaselens-results.zip -OutFile diseaselens-results.zip
+Expand-Archive diseaselens-results.zip -DestinationPath .
+```
+
+With the GitHub CLI: `gh release download --repo ZhaoTie-re/DiseaseLens --pattern 'diseaselens-results.zip*'`.
+
+### 2. Open
+
+Open `results/index.html` in any browser: double-click it, or `open results/index.html` (macOS),
+`xdg-open results/index.html` (Linux), `start results\index.html` (Windows). Nothing needs to be installed and no
+network is needed: every page is a self-contained HTML file, and every link is relative, so the folder can be moved,
+copied or shared as it is.
+
+![The index of the prebuilt knowledge graphs](docs/img/index.png)
+
+The index lists every disease. **Open viewer** opens a disease's knowledge graph in a new tab; the workbook (Excel,
+LibreOffice, WPS), the knowledge base (Markdown) and the snapshot's README are linked beside it.
+
+### 3. Serve them (optional)
+
+To browse the graphs at an address, for example on a lab server, serve the folder with any static web server. With
+Python:
+
+```bash
+python3 -m http.server 8000 --bind 127.0.0.1 --directory results
+# then open http://127.0.0.1:8000/
+```
+
+On a remote server, start the same command there and forward the port from your computer:
+
+```bash
+ssh -N -L 8000:127.0.0.1:8000 <user>@<server>     # then open http://127.0.0.1:8000/ locally
+```
+
+The pages are static files: no database or backend runs. `--bind 127.0.0.1` keeps the server private to the
+machine; serve on another address only on a network you trust.
+
+### Query the graph
+
+**With `kg.py`**, the query tool of this repository (standard library only). Clone the repository and unzip the
+download inside it, so that the graphs are in its `results/` folder:
 
 ```bash
 git clone https://github.com/ZhaoTie-re/DiseaseLens.git
 cd DiseaseLens
-conda env create -f environment.yml && conda activate diseaselens    # Python, packages, Java 17, Nextflow
+curl -LO https://github.com/ZhaoTie-re/DiseaseLens/releases/latest/download/diseaselens-results.zip
+unzip diseaselens-results.zip
+
+python3 scripts/kg.py --disease cteph info                              # the snapshot and its counts
+python3 scripts/kg.py --disease cteph gene FGG                          # level, function, findings with sentences
+python3 scripts/kg.py --disease cteph condition "pulmonary embolism"    # why it is related, shared genetics
+python3 scripts/kg.py --disease cteph studies --place Japan             # genetic studies by place
+python3 scripts/kg.py --disease ipah --json gene BMPR2                  # JSON instead of Markdown
+python3 scripts/kg.py --disease cteph sql "SELECT label, disease_level, disease_code FROM node_gene WHERE disease_level <= 2 ORDER BY disease_level"
 ```
 
-Without conda: Python 3.10+ with `pip install -r requirements.txt`, Java 17 and [Nextflow](https://www.nextflow.io).
-The machine that launches the pipeline needs internet access (Open Targets, NCBI, Europe PMC, Ensembl, the model
-backend); every process runs on it.
+`kg.py` reads `results/` of the repository; `--root <folder>` points it at a `results/` folder elsewhere. The
+subcommands are `info`, `gene`, `condition`, `region`, `publication`, `studies`, `search`, `neighbors` and `sql`. In
+Python: `sys.path.insert(0, "scripts"); from kg import KG; KG(disease="cteph").gene("FGG")`.
 
-### 2. Configure the language models
+**With SQLite.** Each snapshot has one database holding the nodes and edges (`node_<type>`, `edge_<type>`) and every
+table of the snapshot:
 
 ```bash
-cp conf/local.config.example conf/local.config      # git ignores it
+sqlite3 results/cteph/snapshots/2026-10-19/05.graph/cteph_knowledge_graph.sqlite \
+  "SELECT label, disease_level, disease_code, theme FROM node_gene WHERE disease_level <= 3 ORDER BY disease_level, label;"
 ```
 
-Choose one block in `conf/local.config`:
+**With Python** (pandas, NetworkX):
 
-| You have | Block | Then |
-|---|---|---|
-| the Claude Code command-line tool, logged in | (1) `claude-cli` | nothing (`claude update` if it does not know a model) |
-| an Anthropic API key | (2) `anthropic` | `pip install anthropic`; `export ANTHROPIC_API_KEY=...` |
-| an OpenAI-compatible endpoint (OpenAI, DeepSeek, vLLM, Ollama, ...) | (3) `openai`, with `base_url` | `export OPENAI_API_KEY=...` (a local server may need none) |
+```python
+import json, sqlite3
+import pandas as pd
+import networkx as nx
 
-- The two readers and the adjudicator are **three different models, each named**: a backend's default changes with
-  its version, and the adjudicator must be neither reader (the pipeline refuses it otherwise).
-- **Keys** are read from the environment only; the configuration names the variable, never the key.
-- **Isolation.** The command-line tool runs with every customization off, in a scratch directory: no file, memory or
-  instruction of yours reaches a model. Logged in to a claude.ai account, the tool adds the account's e-mail address
-  to what the model sees; any e-mail address not in the source text is removed from every answer before it is
-  cached. The API backends send the prompt alone.
-- Set `python` in `conf/local.config` if the Python with the packages is not the first `python3` on your `PATH`.
+snap = "results/cteph/snapshots/2026-10-19/05.graph"
+db = sqlite3.connect(f"{snap}/cteph_knowledge_graph.sqlite")
+genes = pd.read_sql("SELECT label, disease_level, disease_code, theme FROM node_gene "
+                    "WHERE disease_level IS NOT NULL ORDER BY disease_level", db)
 
-Then check the setup:
+with open(f"{snap}/graph.json") as f:
+    data = json.load(f)
+try:
+    G = nx.node_link_graph(data, edges="edges")    # NetworkX 3.4 and later
+except TypeError:
+    G = nx.node_link_graph(data, link="edges")     # earlier versions
+print(G.number_of_nodes(), G.number_of_edges())
+```
+
+**With R** (base R, the TSV tables):
+
+```r
+snap  <- "results/cteph/snapshots/2026-10-19/05.graph"
+genes <- read.delim(file.path(snap, "nodes_gene.tsv"))
+edges <- read.delim(file.path(snap, "edges_related_to.tsv"))
+subset(genes, !is.na(disease_level) & disease_level <= 2, select = c(label, disease_level, disease_code))
+```
+
+Every column of every table is described in the snapshot's `05.graph/README.md`.
+
+### What the download holds
+
+```text
+results/
+├── index.html, index.json, README.md       the index of every disease
+└── <disease>/
+    ├── latest.json                         the newest snapshot and the path of each product
+    └── snapshots/<date>/
+        ├── <disease>_knowledge_graph.html  the viewer
+        ├── <disease>_knowledge_graph_<date>.xlsx, ..._summary.xlsx    the workbooks
+        ├── 01.conditions/ … 04.tables/     evidence, curation and long tables (TSV)
+        ├── 05.graph/                       nodes and edges (TSV), graph.json, SQLite, schema
+        ├── 06.summaries/ … 09.figures/     summaries, changes, knowledge base, figures
+        └── _run_info/                      the resolved profile and the run manifest
+```
+
+Not included are the raw downloads of each build (`00.raw/`, `00.pubmed/`, and the relation search of
+`01.relations/`), which hold full PubMed abstracts; everything derived from them, with its source sentences and
+PMIDs, is included. They are recreated by running the pipeline ([docs/USAGE.md](docs/USAGE.md)).
+
+## Reading a knowledge graph
+
+Every gene with genetic evidence for the disease is placed on an **evidence ladder** of seven levels, the same for
+every disease; a gene takes its strongest level.
+
+| Level | Code | Name | Meaning |
+|---|---|---|---|
+| 1 | G / C | Genome-wide or curated evidence | in a genome-wide significant GWAS region of the disease (G), or with curated gene–disease evidence (C) |
+| 2 | G\* | Secondary GWAS analysis | in a region significant only in a secondary analysis of a published GWAS |
+| 3 | | Replicated association | associated with the disease in two or more genetic studies |
+| 4 | | Single-study association | associated in one genetic study |
+| 5 | | Variant reported, not tested | a variant reported in patients, without an association test |
+| 6 | | Tested, not associated | tested and not associated in any study |
+| 7 | | No result about the disease itself | named in a genetic study without a result about the disease itself (the reason is given for each gene) |
+
+The viewer has one tab per question: **Overview** (the ladder by gene function), **Genes**, **Related conditions**
+(an interactive map: every relation with its evidence, a verbatim quote or a shared GWAS signal), **GWAS regions**,
+**Genetic studies** (design, place, sample sizes, methods, findings), **Curation** (what was left out or corrected,
+and every disagreement between the two model readers with its decision), and **How it is built**. Every gene,
+condition, region and study has its own page, with each edge and its source link. A link from a list opens in a new
+tab; the browser tab names the disease first.
+
+![A gene page: evidence, findings and sources](docs/img/viewer-gene.png)
+
+## How the graphs are built
+
+```mermaid
+%%{init: {"flowchart": {"rankSpacing": 28, "nodeSpacing": 24}}}%%
+flowchart LR
+    ID(["Disease ID"]) --> S["Sources"]
+    S --> R["Related<br/>conditions"]
+    S --> L["Genetic studies<br/>2 readers + adjudicator"]
+    R --> C["Curation"]
+    L --> C
+    C --> G["Evidence ladder<br/>and graph"]
+    G --> P["Viewer · workbook<br/>knowledge base"]
+    classDef model fill:#e3eef8,stroke:#1f4e79,color:#1f2328
+    classDef rule fill:#fdf2e6,stroke:#a8792e,color:#1f2328
+    classDef out fill:#e6f2ea,stroke:#4f8a68,color:#1f2328
+    class R,L model
+    class C,G rule
+    class P out
+```
+
+- **Sources.** Open Targets (the disease and its ontology, GWAS credible sets, locus-to-gene scores,
+  colocalizations, curated gene evidence, text-mined literature), PubMed (genetic studies, clinical relations, the
+  record of every publication used) and Europe PMC (Methods sections of open-access full texts). PubMed is searched
+  up to the snapshot's date, so a snapshot can be reproduced.
+- **GWAS regions** come from a published table, or from the disease's GWAS in Open Targets when the lead variant is
+  credible: enough expected copies of its minor allele, a stricter P for rare variants, or replication.
+- **Related conditions** enter by clinical evidence (a curated list, or relations read from PubMed with a verbatim
+  quote), by the disease ontology, or by a GWAS signal shared with a region of the disease.
+- **Genetic studies** are screened by rule, then read by two language models that never see each other's answer; a
+  third model decides where they differ. Every gene, variant, number and quote must occur in the source text, or the
+  item is dropped.
+- **Curation** is deterministic: retracted articles and conference material are left out, each study gets its place
+  and design, each variant one name, each finding what it is about, and text-mining errors are removed.
+- **Every rule** is a parameter or a configuration file, recorded in each snapshot with its value and basis.
+
+The full methods are in [docs/METHODS.md](docs/METHODS.md).
+
+## Build the graph of another disease
 
 ```bash
-NO_LLM=1 ./verify.sh      # sections 1-6 must pass; without NO_LLM it also tests the isolation with one small call
+git clone https://github.com/ZhaoTie-re/DiseaseLens.git && cd DiseaseLens
+conda env create -f environment.yml && conda activate diseaselens
+cp conf/local.config.example conf/local.config          # choose the language-model backend
+python3 scripts/new_disease.py <disease ID>             # e.g. MONDO_0017148; writes diseases/<key>/profile.yaml
+nextflow run main.nf -c conf/local.config --diseases <key> --FetchDate $(date +%F)
 ```
 
-### 3. Write the profile of the disease
-
-Find the disease's ID at [platform.opentargets.org](https://platform.opentargets.org) (EFO_, MONDO_, HP_,
-Orphanet_ ...; never a name, which can name several diseases), then:
-
-```bash
-python3 scripts/new_disease.py MONDO_0017148              # writes diseases/hpah/profile.yaml
-python3 scripts/new_disease.py <ID> --short ABC --key abc  # your own short name or folder name
-```
-
-The profile is written from the Open Targets record, every value with the rule that chose it:
-
-| Value | Rule |
-|---|---|
-| `name` | the Open Targets name |
-| `short` (and the folder name) | the shortest acronym among the exact synonyms that spells the name; else the name itself if it has at most 11 characters; else the initials, **made up and marked `# CHECK`**: a label only, never searched; replace it with the abbreviation the literature uses (or give `--short`) |
-| `pubmed: terms` | the name (always), the exact synonyms, the short name and the names of `evidence_also` entries, in title or abstract; left out: a one-word term that is also a gene (PAH, phenylalanine hydroxylase), a term that names another disease, acronyms of two characters or fewer, database forms ("A, B" is also searched as "B A"); an acronym only beside a word of the name. Each term left out is listed with its reason |
-| `evidence_also` | for a grouping name ("A and/or B"), the Open Targets entries of its parts whose evidence is fetched with the disease's own (PVOD/PCH: the literature of pulmonary veno-occlusive disease is held under its own entry) |
-
-Read the profile before the first run. You can:
-- add a former name of the disease to `terms` (HPAH: "familial primary pulmonary hypertension"), so that older
-  studies are found;
-- add a `scope`: one or two sentences on which studies count as studies of the disease. Useful for a subtype, whose
-  patients are often studied together with others;
-- keep everything else at its default, or add curated files to the disease folder, each replacing a default:
-
-| File in `diseases/<key>/` | Replaces |
-|---|---|
-| `related_conditions.yaml` | the clinical relations read from PubMed: a curated list, each statement with a PMID and its verbatim quote |
-| `gwas_regions.yaml` | the regions from Open Targets: the regions of a published GWAS table |
-| `gene_themes.yaml` | Reactome top-level pathways as gene functions |
-| `curation.yaml` | (adds) findings that are not about the disease; text-mining corrections |
-| `choices.yaml` | (adds) the bases of your curated files in the choices registry |
-| `text/<product>.yaml` | (adds) prose about the disease in the products |
-
-`diseases/cteph/` is a fully curated example; `diseases/hpah/`, `ipah/` and `pvod_pch/` are profiles written from
-the ID.
-
-### 4. A small test run
-
-```bash
-nextflow run main.nf -c conf/local.config --diseases hpah --FetchDate $(date +%F) \
-    --LlmLimit 10 --MaxThemes 2 --results_root results/_smoke
-```
-
-The first 10 PubMed records only, into `results/_smoke`: a few minutes and a few dozen model calls. A disease can be
-named by its folder or by its ID (`--diseases MONDO_0017148`).
-
-### 5. The full run
-
-```bash
-nextflow run main.nf -c conf/local.config --diseases hpah --FetchDate $(date +%F)
-nextflow run main.nf -c conf/local.config --diseases hpah,ipah --FetchDate $(date +%F)     # several diseases
-nextflow run main.nf -c conf/local.config -params-file projects/pulmonary_hypertension.yaml
-```
-
-| Option | Effect |
-|---|---|
-| `--diseases a,b` | the diseases, by folder or ID; in a params file a list, each entry `{key, fetch_date, rebuild}` if they differ |
-| `--FetchDate YYYY-MM-DD` | the snapshot date: PubMed records that entered PubMed up to it; Open Targets as served on the day of the run |
-| `-resume` | after a stop (an error, a network failure, a model account's usage limit), continue where it stopped |
-| `--LlmOffline true` | cached model answers only; no model is called (a record without a cached answer is reported as not read) |
-| `--Rebuild true` (or `--Rebuild key`) | re-derive the snapshot of that date from its saved sources (step 7) |
-| `--results_root <dir>` | write elsewhere than `results/` |
-
-**Time and cost** grow with the genetic literature of the disease. With three Claude models through the
-command-line tool, first builds took: IPAH, 911 genetic-study records (336 read after the pre-screen) and 587
-relation records, about US$60 and four hours; PVOD/PCH, about 190 records, about US$20. Every answer is cached as
-soon as it arrives, so a stopped run resumes without paying twice.
-
-### 6. Check and open the results
-
-```bash
-./verify.sh                    # every disease: configuration, privacy, and the checks of each snapshot
-DISEASES=hpah ./verify.sh      # one disease
-```
-
-`results/index.html` lists every disease with its newest snapshot (`results/<key>/latest.json` points to it). In
-`results/<key>/snapshots/<date>/`:
-
-| To | Open |
-|---|---|
-| browse the graph: search, a page per gene, condition, region and study, every source linked; "How it is built" explains every rule as applied to this disease | `<key>_knowledge_graph.html`, in any browser, offline |
-| read the evidence by question | `<key>_knowledge_graph_<date>.xlsx`; `..._summary.xlsx` without the appendix, to send |
-| read the knowledge base, with figures | `08.knowledge/<key>_knowledge_graph.md`, `09.figures/` |
-| see what the two models disagreed on, and how it was decided | `03.curated/model_review.tsv`; sheet 10 of the workbook |
-| see every rule applied by the curation | `03.curated/curation_log.tsv` |
-| query from the shell or Python | `05.graph/<key>_knowledge_graph.sqlite` with `scripts/kg.py` |
-
-```bash
-python3 scripts/kg.py --disease hpah gene BMPR2           # level, function, every finding with its sentence
-python3 scripts/kg.py --disease cteph condition "pulmonary embolism"
-python3 scripts/kg.py --disease cteph studies --place Japan
-python3 scripts/kg.py --disease ipah sql "SELECT label, disease_level, disease_code FROM node_gene WHERE disease_level <= 2"
-python3 scripts/kg.py --disease cteph --json gene FGG      # JSON instead of Markdown
-```
-
-In Python, with `scripts/` on the path: `from kg import KG; KG(disease='hpah').gene('BMPR2')`. The query tool needs
-only the standard library.
-
-### 7. Update, rebuild, change a rule
-
-- **A later snapshot.** Run again with a new `--FetchDate`. Sources are read again; only new or changed records go to
-  the models (answers are cached per record); the snapshot is compared with the previous one (`07.changes`, sheet 12).
-- **A rule changed.** Every threshold is a parameter of [nextflow.config](nextflow.config) (set it on the command
-  line or in a params file); the shared lists are in `config/` (`search.yaml`: the PubMed blocks and the pre-screen;
-  `curation.yaml`: the curation rules; `choices.yaml`: the registry with the basis of each choice). A disease's own
-  entries go into its folder. Every product shows the values of the run.
-- **Rebuild.** `--Rebuild true --FetchDate <the snapshot's date>` re-derives a snapshot from its saved sources after a
-  change of rule, without reading the sources again. It does not re-derive the related conditions (their resolution
-  queries Open Targets); a change to the rules of the relations takes a new fetch.
-
-### 8. Share and cite
-
-Send the files: the viewer is one HTML file that works offline; the summary workbook opens in Excel and WPS and
-prints on A4; zipping `results/` keeps `index.html` and every link working from disk. Every viewer page carries the
-snapshot, its sources and how to cite it.
-
-Cite a snapshot as: DiseaseLens, `<disease>` knowledge graph, snapshot `<date>`, Open Targets `<release>`,
-https://github.com/ZhaoTie-re/DiseaseLens. Open Targets data are open (CC0 1.0); abstracts and full texts remain
-under their publishers' copyright or their articles' licenses, and the graph keeps short source sentences and
-quotes as evidence, each linked to its PubMed record.
-
-### Troubleshooting
-
-| Symptom | Cause, and what to do |
-|---|---|
-| the run stops at a model account's usage limit | wait for the limit to reset, then the same command with `-resume` |
-| `no short name: give short` | the name is long and has no acronym among its synonyms: `new_disease.py <ID> --short ABC`, or set `short` |
-| `WARNING: the query finds no record` | the terms find nothing in PubMed: add the names the literature uses to `pubmed: terms` |
-| `PubMed reports an error for the query` | a malformed term in `pubmed: terms` or `query` |
-| `curation items that match no finding (stale config)` | an entry of the disease's `curation.yaml` no longer matches the literature: read it against the new snapshot, then edit or remove it |
-| `two readers need an adjudicator` | name a third model in `llm.adjudicator` |
-| a model name the command-line tool does not know | `claude update` |
-| `Open Targets serves <release>, the snapshot is <release>` | a rebuild needs the release of its snapshot; build a new snapshot instead |
+The language models can be the Claude Code CLI, the Anthropic API or any OpenAI-compatible endpoint (three different
+models: two readers and an adjudicator). Installing, configuring the models, adding a disease, test runs, options,
+outputs and troubleshooting are in [docs/USAGE.md](docs/USAGE.md).
 
 ## Repository layout
 
@@ -251,22 +263,22 @@ quotes as evidence, each linked to its PubMed record.
 |---|---|
 | `main.nf`, `nextflow.config` | the pipeline and its parameters |
 | `diseases/<key>/` | one folder per disease: its profile and optional curated files |
-| `config/` | the shared rules: PubMed blocks and pre-screen, curation rules, the choices registry |
+| `config/` | shared rules: PubMed searches and pre-screen, curation rules, the choices registry |
 | `conf/local.config.example` | your settings (Python, language models), to copy to `conf/local.config` |
-| `projects/` | an example params file: several diseases in one run |
-| `scripts/` | the step scripts, `new_disease.py`, the query tool `kg.py`, `plot_style.py` (the figure style) |
-| `verify.sh` | pre-flight and post-run checks (read-only) |
-| `docs/` | [METHODS.md](docs/METHODS.md), [OUTPUTS.md](docs/OUTPUTS.md), [STUDY_NOTES.md](docs/STUDY_NOTES.md) |
+| `projects/` | an example project file: several diseases in one run |
+| `scripts/` | the steps of the pipeline, `new_disease.py`, and the query tool `kg.py` |
+| `verify.sh` | read-only checks before and after a run |
+| `docs/` | [METHODS.md](docs/METHODS.md), [USAGE.md](docs/USAGE.md), images |
 
-The repository holds the pipeline only. What a run makes stays on the machine that made it, and git ignores it:
-`results/` (the snapshots), `cache/` (the model answers and a local usage log), `work/` and `.nextflow/` (the run
-state), and `conf/local.config`.
+Results, the model cache and run records are written outside version control (`results/`, `cache/`, `work/`).
 
-## Requirements
+## Citing and reusing
 
-- Nextflow (tested with 26.04) and Java 17.
-- Python 3 (tested with 3.12) with [requirements.txt](requirements.txt); `anthropic` only for the Anthropic backend.
-- Internet access from the launching machine.
+Cite a snapshot as: DiseaseLens, `<disease>` knowledge graph, snapshot `<date>`, Open Targets `<release>`,
+https://github.com/ZhaoTie-re/DiseaseLens. The cover sheet of each workbook gives the exact line.
+
+Open Targets data are open (CC0 1.0). Abstracts and full texts remain under their publishers' copyright or their
+articles' licenses; the graphs keep short source sentences as evidence, each linked to its PubMed record.
 
 ## Author
 

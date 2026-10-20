@@ -18,7 +18,7 @@
 #                       disease, acronyms of two characters or fewer, and
 #                       database forms of a name; an acronym only beside a word
 #                       of the name
-#           Everything else follows the defaults of the pipeline (README,
+#           Everything else follows the defaults of the pipeline (docs/USAGE.md,
 #           "Add a disease"). Open Targets is read; nothing else.
 # Usage   : python3 scripts/new_disease.py MONDO_0017148 [--key hpah] [--short HPAH] [--force]
 # ---------------------------------------------------------------------------
@@ -82,7 +82,7 @@ def main():
     lines = [f'# The disease profile of {rec["name"]}, written by scripts/new_disease.py from Open Targets {rel}.',
              '# Every value below follows the rule given beside it; edit any of them, then run the pipeline. Only `id`',
              '# is required; the related conditions, GWAS regions, gene themes and curation follow the defaults of the',
-             '# pipeline (README, "Add a disease").',
+             '# pipeline (docs/USAGE.md, "Add a disease").',
              f'id: {rec["id"]}            # the Open Targets disease ID (required)',
              f'name: {q(rec["name"])}     # its Open Targets name',
              f'short: {q(short)}          # {short_rule}', '',
