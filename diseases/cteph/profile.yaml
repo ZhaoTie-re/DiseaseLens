@@ -1,74 +1,30 @@
-# The disease profile of CTEPH, the first application of DiseaseLens. Only `id` is required for a disease; every
-# other field has a default (docs/USAGE.md, "Add a disease"). CTEPH sets its names and its PubMed query here so that the
-# language-model prompts stay exactly those of its first build (2026-10-16), whose cached answers are reused.
-id: EFO_0022954
-name: chronic thromboembolic pulmonary hypertension
-short: CTEPH
-# the name as the extraction prompt of the first build wrote it, line break included, so that its cached answers are
-# reused (used in that prompt only)
-prompt_name: "chronic thromboembolic pulmonary\nhypertension"
+# The disease profile of chronic thromboembolic pulmonary hypertension, written by scripts/new_disease.py from Open Targets 26.09.
+# Every value below follows the rule given beside it; edit any of them, then run the pipeline. Only `id`
+# is required; the related conditions, GWAS regions, gene themes and curation follow the defaults of the
+# pipeline (docs/USAGE.md, "Add a disease").
+id: EFO_0022954            # the Open Targets disease ID (required)
+name: 'chronic thromboembolic pulmonary hypertension'     # its Open Targets name
+short: 'CTEPH'          # the shortest acronym among the exact synonyms in Open Targets that spells the name
 
 pubmed:
-  # the genetic studies of CTEPH: CTEPH in title or abstract, and a genetic-study term
-  query: '("chronic thromboembolic pulmonary hypertension"[tiab] OR CTEPH[tiab]) AND (gene*[tiab] OR genetic*[tiab]
-    OR polymorphism*[tiab] OR variant*[tiab] OR mutation*[tiab] OR genome-wide[tiab] OR GWAS[tiab] OR HLA[tiab] OR
-    sequencing[tiab] OR genotyp*[tiab] OR allele*[tiab] OR exome[tiab])'
+  # the disease in title or abstract: its name, exact synonyms and short name
+  #   acronyms: searched only beside a word of the name (chronic OR thromboembolic OR pulmonary OR hypertension)
+  terms: '("chronic thromboembolic pulmonary hypertension"[tiab] OR (CTEPH[tiab] AND (chronic[tiab] OR thromboembolic[tiab] OR pulmonary[tiab] OR hypertension[tiab])))'
+  # which studies count as studies of the disease, given to the language-model readers (optional):
+  # scope: <one or two sentences>
 
-# The ontology neighbors: the parent of CTEPH (pulmonary hypertension), its siblings, and the children of pulmonary
-# arterial hypertension (CTEPH has no children of its own).
+# The neighbors of the disease in the ontology (all on by default); a parent with too many children is
+# left out by the pipeline (MaxOntologyChildren).
+# parents:  pulmonary hypertension
+# children: none
 ontology:
-  parents: true
-  siblings: true
-  children: true
-  children_of: [MONDO_0015924]
-  category: PH group
-  description: Pulmonary hypertension and its other forms, the neighbors of CTEPH in the disease ontology.
+  category: Disease group   # the category of the ontology neighbors in the products
 
-# The categories of related conditions (2022 ESC/ERS guidelines; ERS statement on CTEPH), in the order shown.
-categories:
-  - name: Precursor / spectrum
-    description: Venous thromboembolism and the chronic thromboembolic disease spectrum CTEPH develops from.
-  - name: Risk factor
-    description: Conditions and procedures that raise the risk of CTEPH (mostly against non-thromboembolic PH
-      controls).
-  - name: Comorbidity
-    description: Conditions more frequent in CTEPH, or reported with it.
-  - name: Intermediate trait
-    description: Blood traits between genotype and thrombosis.
+# Other Open Targets entries whose evidence (targets, text-mined literature, GWAS, curated genes) is
+# fetched with the disease's own; the products name them. Proposed: an entry that a part of a grouping
+# name ("A and/or B") names, other than the disease and its descendants.
+# evidence_also: []
 
-# Short labels of conditions in figures and narrow columns, and abbreviations defined in the products.
-labels:
-  Venous thromboembolism: VTE
-  Deep vein thrombosis: DVT
-  Pulmonary embolism: PE
-  Pulmonary arterial hypertension: PAH
-  Pulmonary arterial hypertension associated with another disease: PAH, associated
-  heritable pulmonary arterial hypertension: Heritable PAH
-  idiopathic pulmonary arterial hypertension: Idiopathic PAH
-  pulmonary veno-occlusive disease and/or pulmonary capillary hemangiomatosis: PVOD / PCH
-  hyperuricemia-pulmonary hypertension-renal failure-alkalosis syndrome: HUPRA syndrome
-  Hypothyroidism / thyroid replacement therapy: Hypothyroidism
-  Sickle cell disease and hemoglobinopathies: Sickle cell disease
-  Fibrinogen (level and variants): Fibrinogen
-  Factor XI level (F11 locus): Factor XI level
-  Antiphospholipid syndrome / antiphospholipid antibodies: Antiphospholipid syndrome
-  von Willebrand factor level: VWF level
-  pulmonary hypertension: Pulmonary hypertension
-abbreviations:
-  PE: pulmonary embolism
-  VTE: venous thromboembolism
-  DVT: deep vein thrombosis
-  PH: pulmonary hypertension
-  PAH: pulmonary arterial hypertension
-  PVOD: pulmonary veno-occlusive disease
-  PCH: pulmonary capillary hemangiomatosis
-  HUPRA: hyperuricemia, pulmonary hypertension, renal failure and alkalosis
-  VWF: von Willebrand factor
-  CH: clonal hematopoiesis
-  MPN: myeloproliferative neoplasm
-
-# Expectations verify.sh and the data checks hold this snapshot to.
-checks:
-  single_region_top: ABO
-  example_gene: FGG
-  published_regions: 9
+# Technical, not a rule: the name as the extraction prompt of the first CTEPH build wrote it (with a line break), so
+# that the readings cached then are reused rather than paid for again. Used in that prompt only.
+prompt_name: "chronic thromboembolic pulmonary\nhypertension"

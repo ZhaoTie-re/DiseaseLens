@@ -248,8 +248,10 @@ def main():
     basis = lambda k: (choice.get(k) or {}).get('basis', '')  # noqa: E731
     value = lambda k: (choice.get(k) or {}).get('value_text', '')  # noqa: E731
     pub = {r['pmid']: r for r in load_json(a.seed_pubmed)['records']}
-    who = lambda p: f'{pub[p]["first_author"].split()[0]} {pub[p]["year"]}' if p in pub else ''  # noqa: E731
-    cite = lambda p: f'{who(p)}, PMID {p}' if p in pub else f'PMID {p}'  # noqa: E731
+    # "<first author's surname> <year>, PMID n"; a record without an author list (a guideline, say) by its PMID alone
+    who = lambda p: (f'{str(pub[p].get("first_author") or "").split()[0]} {pub[p]["year"]}'  # noqa: E731
+                     if p in pub and str(pub[p].get('first_author') or '').split() else '')
+    cite = lambda p: f'{who(p)}, PMID {p}' if who(p) else f'PMID {p}'  # noqa: E731
     names = dict(zip(cond.node_id, cond.name))
     qs = [P.fill(q) for q in QUESTIONS]
     cats = category_order(P, cond)

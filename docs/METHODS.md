@@ -94,14 +94,17 @@ the readers), the ontology neighbors to use, the categories of related condition
 abbreviations, and expected values for the checks. A disease folder can hold curated files, each replacing or
 adding to a default:
 
-| File | Replaces or adds | CTEPH |
+| File | Replaces or adds | In the four example graphs |
 |---|---|---|
-| `related_conditions.yaml` | replaces the clinical relations read from PubMed (section 6) | 27 conditions, each statement with a PMID and a verbatim quote |
-| `gwas_regions.yaml` | replaces the GWAS regions from Open Targets (section 5.1) | the nine regions of Liley et al. (2024), Table 1 |
-| `gene_themes.yaml` | replaces Reactome pathways as gene functions (section 5.4) | eight themes, each with its basis and references |
-| `curation.yaml` | adds disease-specific curation entries (section 9) | findings not about CTEPH; text-mining corrections |
-| `choices.yaml` | adds to, or replaces items of, the choices registry | the bases of its curated files |
-| `text/<product>.yaml` | adds prose about the disease to the products | the published GWAS table |
+| `related_conditions.yaml` | replaces the clinical relations read from PubMed (section 6) | none: all four read their relations from PubMed |
+| `gwas_regions.yaml` | replaces the GWAS regions from Open Targets (section 5.1) | CTEPH: the nine regions of Liley et al. (2024), Table 1 |
+| `gene_themes.yaml` | replaces Reactome pathways as gene functions (section 5.4) | none: all four use Reactome |
+| `curation.yaml` | adds disease-specific curation entries (section 9) | none: all four use the shared rules only |
+| `choices.yaml` | adds to, or replaces items of, the choices registry | CTEPH: the basis of its GWAS table |
+| `text/<product>.yaml` | adds prose about the disease to the products | none |
+
+The four example graphs are built by the same rules from profiles written from their IDs; the one curated input
+among them is CTEPH's published GWAS table, because Open Targets fine-maps only some of its regions.
 
 `profile.py` merges the profile, the disease's files and the shared rules of `config/` (`search.yaml`,
 `curation.yaml`, `choices.yaml`) into one `profile.json`, saved in the snapshot (`_run_info/profile.json`) and read
@@ -285,8 +288,8 @@ A condition enters the graph through at least one of four kinds of evidence. Eve
 
 ### Clinical relations read from PubMed
 
-A disease with a curated list (CTEPH) uses it as the clinical evidence, each statement with its PMID and quote.
-Without one, the relations are read from PubMed:
+A disease with a curated list (`related_conditions.yaml`) uses it as the clinical evidence, each statement with
+its PMID and quote. Without one, as for all four example graphs, the relations are read from PubMed:
 
 ```mermaid
 flowchart TD
@@ -359,7 +362,7 @@ do.
 ### Categories
 
 Clinical relations take a category: precursor / spectrum, risk factor, comorbidity, or intermediate trait (a
-profile can name its own, as CTEPH does after the 2022 ESC/ERS guidelines). Ontology neighbors form their own
+profile can name its own). Ontology neighbors form their own
 category (default "Disease group"), and traits related only by a shared GWAS signal are grouped as "Shared GWAS
 signal only".
 
@@ -409,8 +412,7 @@ flowchart TD
    fetch date.
 2. **Pre-screen**, by rule, before any model reads a record. A record is excluded when it is typed Review,
    Systematic Review, Guideline, Practice Guideline, Editorial, Comment, News or Consensus Development Conference, or
-   when its title and abstract name no genetic-study term (`config/search.yaml`). CTEPH: 98 of 471 records kept,
-   including all 15 original genetic studies of a benchmark set, re-checked at every build.
+   when its title and abstract name no genetic-study term (`config/search.yaml`). CTEPH: 97 of 470 records kept.
 3. **Abstracts (pass A).** Two models read every record, five per call, and never see each other's answer. Each
    decides whether the record is an original genetic study or case report of the disease (within the profile's
    `scope`, when given). For an included record each extracts the design; the population (country, ancestry,
@@ -455,11 +457,11 @@ flowchart TD
 
 | | CTEPH | HPAH | IPAH | PVOD/PCH |
 |---|---|---|---|---|
-| PubMed records | 471 | 274 | 911 | 198 |
-| Read by the models after the pre-screen | 98 | 218 | 336 | 93 |
-| Included by the readers | 51 | 113 | 145 | 51 |
-| Findings | 140 | 244 | 310 | 77 |
-| Findings adjudicated | 26 (19%) | 64 (26%) | 105 (34%) | 27 (35%) |
+| PubMed records | 470 | 274 | 911 | 198 |
+| Read by the models after the pre-screen | 97 | 218 | 336 | 93 |
+| Included by the readers | 50 | 113 | 145 | 51 |
+| Findings | 136 | 244 | 310 | 77 |
+| Findings adjudicated | 22 (16%) | 64 (26%) | 105 (34%) | 27 (35%) |
 
 **Isolation.** The command-line backend runs `claude -p` with tools, MCP servers, session persistence and memory
 disabled, from a scratch directory, so no file, memory or instruction of the user reaches the model; any e-mail
@@ -485,7 +487,7 @@ logged row by row (`03.curated/curation_log.tsv`).
 | **Design class** | One per study, the first that applies: case report; genome-wide; clonal hematopoiesis; exome or gene panel; HLA typing; candidate gene; other. |
 | **Variant names** | One name per variant and, for classic variants, the dbSNP rsID; the name as written is kept beside it. |
 | **What a finding is about** | The disease itself (default); an outcome or phenotype within it; another trait; a functional experiment; a background statement. The non-default kinds are listed in the disease's curation file, each matched against its source sentence; an entry that matches nothing stops the build. |
-| **Text-mined links** | Europe PMC text mining maps words to genes by dictionary. A matched word that names the disease or an ontology neighbor is a false link (HPAH: "PAH" mapped to phenylalanine hydroxylase), unless the gene has curated evidence for the disease (IPAH: "PPH1", the old name of the BMPR2 locus). Other false words are listed per disease (CTEPH: sGC, soluble guanylate cyclase, mapped to SGCB). A link whose every word is wrong is dropped; a listed correction that matches nothing stops the build. |
+| **Text-mined links** | Europe PMC text mining maps words to genes by dictionary. A matched word that names the disease or an ontology neighbor is a false link (HPAH: "PAH" mapped to phenylalanine hydroxylase), unless the gene has curated evidence for the disease (IPAH: "PPH1", the old name of the BMPR2 locus). Other false words can be listed in the disease's curation file. A link whose every word is wrong is dropped; a listed correction that matches nothing stops the build. |
 
 ## 10. Summaries
 

@@ -180,7 +180,9 @@ def main():
         assert x is None or x.status != 'excluded', f'an excluded publication in the graph: {p}'
         get = lambda k: '' if x is None else x[k]  # noqa: E731
         surname = re.sub(r'\s+[A-Z]{1,3}$', '', get('first_author'))     # 'Arthur Ataam J' -> 'Arthur Ataam'
-        label = (f'{surname} {get("year")}'.strip() if x is not None else p)
+        # "<surname> <year>"; a record without an author list (a guideline, say) is labeled by its PMID
+        label = (f'{surname} {get("year")}'.strip() if x is not None and surname.strip() else
+                 f'PMID {p}' if x is not None and str(p).isdigit() else p)
         node('publication', pid(p), label or p, year=get('year'), first_author=get('first_author'),
              title=get('title'), journal=get('journal'), roles='; '.join(sorted(ro)),
              status=(get('reason') if x is not None and x.status == 'flagged' else ''),

@@ -158,13 +158,14 @@ ontology:
 | `pubmed.query` | terms AND the genetic-study block of `config/search.yaml` | only to replace the whole genetic-study search |
 | `relations.query` | terms AND relation designs AND relation words | only to replace the whole relation search |
 | `evidence_also` | proposed for a grouping name ("A and/or B") | other Open Targets entries whose evidence counts as the disease's |
-| `ontology` | `parents`, `siblings`, `children` on; `children_of: []`; `category: Disease group` | `children_of` adds the children of another disease (CTEPH: of pulmonary arterial hypertension) |
+| `ontology` | `parents`, `siblings`, `children` on; `children_of: []`; `category: Disease group` | `children_of` adds the children of another disease |
 | `categories` | precursor / spectrum, risk factor, comorbidity, intermediate trait | categories of related conditions specific to the disease |
 | `labels`, `abbreviations` | none | short labels for long condition names in figures and narrow columns |
 | `checks` | none | expected values that `verify.sh` checks (for example `published_regions: 9`) |
 
 **Before the first run,** read the profile: the short name, the terms and the terms left out. `diseases/hpah/`,
-`diseases/ipah/` and `diseases/pvod_pch/` are profiles written from their ID; `diseases/cteph/` is fully curated.
+`diseases/ipah/` and `diseases/pvod_pch/` are profiles written from their ID, and so is `diseases/cteph/`, which adds
+one curated file, the published table of its GWAS regions.
 
 ### 3.3 Optional curated files
 
@@ -179,6 +180,9 @@ enough.
 | `curation.yaml` | adds curation entries | findings not about the disease itself; words text mining maps to the wrong gene |
 | `choices.yaml` | adds to the choices registry | the basis and references of your curated files |
 | `text/<product>.yaml` | adds prose to the products | disease-specific sentences (for example, how a published table is read) |
+
+The examples below show the format of each file. Of the four example diseases, only CTEPH uses one of them, the
+published table of its GWAS regions (`diseases/cteph/gwas_regions.yaml`).
 
 <details>
 <summary><b>related_conditions.yaml</b>: a curated list of related conditions</summary>

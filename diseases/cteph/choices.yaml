@@ -1,14 +1,7 @@
-# The choices of the CTEPH graph that differ from, or add to, the shared registry (config/choices.yaml). An item
-# replaces the fields of the shared item with the same key; a field set to null is removed. References added here
-# join the shared ones.
+# The choices of the CTEPH graph that add to the shared registry (config/choices.yaml): the basis of its one
+# curated input, the published table of GWAS regions (gwas_regions.yaml), which any disease can give. An item
+# replaces the fields of the shared item with the same key; references added here join the shared ones.
 groups:
-
-- name: Scope and sources
-  items:
-  - key: disease
-    item: CTEPH identifier
-    basis: The Experimental Factor Ontology term for chronic thromboembolic pulmonary hypertension, under which
-      Open Targets holds CTEPH.
 
 - name: '{short} genetics'
   items:
@@ -32,108 +25,8 @@ groups:
       P value; four further regions (F2, TSPAN15, SLC44A2, F5/NME7) reach it only through the co-analysis with
       PE, whose V values are P values adjusted for the genetic similarity of CTEPH and PE. They are marked apart.
     refs: [liley]
-  - key: ladder
-    basis: A gene takes its strongest level. Genome-wide significance and curated gene–disease evidence (level 1;
-      no gene has curated evidence for CTEPH in Open Targets) and significance after leveraging PE (level 2) follow
-      the GWAS; association in two or more studies (level 3) ranks above a single study because replication is
-      what makes an association credible rather than a chance finding. Studies are counted, not independent
-      samples. Levels 3–6 count only findings about CTEPH itself; a gene whose findings concern only an outcome
-      within CTEPH (e.g. GNB3) stays at level 7.
-    refs: [liley, kraft]
-  - key: themes
-    value: 8 curated themes, each with its basis; a gene they do not list, its Reactome top-level pathway
-    basis: Genes are grouped by the function their sources assign them, and each theme names its source (the
-      fibrinogen chains; determinants of VWF and FVIII levels; inherited thrombophilia and VTE loci; HLA; clonal
-      hematopoiesis; PAH genes curated by ClinGen; warfarin pharmacogenetics). A gene the themes do not list joins
-      its Reactome top-level pathway, as for a disease without curated themes (user, 2026-10-20); a gene with no
-      Reactome pathway in Open Targets is listed as "No Reactome pathway".
-    refs: [sabater, ash2023, germain, jaiswal, genovese, welch, cpic, uniprot]
-
-- name: Related conditions
-  items:
-  - key: categories
-    value: precursor / spectrum; risk factor; comorbidity; intermediate trait; PH group
-    basis_type: source
-    basis: Chosen with the user (2026-10-16) and grounded in the guidelines. The 2022 ESC/ERS guidelines place
-      CTEPH in group 4 of pulmonary hypertension and list its risk factors (intravascular devices, inflammatory
-      bowel disease, essential thrombocythemia, polycythemia vera, splenectomy, antiphospholipid syndrome,
-      thyroid hormone replacement, malignancy); the ERS statement places CTEPH within chronic thromboembolic
-      pulmonary disease (CTEPD).
-    refs: [humbert, delcroix]
-  - key: ontology
-    value: parent of CTEPH; its siblings; children of PAH
-    basis: The disease ontology places CTEPH under pulmonary hypertension, whose other forms are its neighbors.
-      They are kept as a separate, weaker evidence type, since the ontology states a classification, not a
-      clinical relation.
-  - key: loci_grading
-    basis: A region can act on another trait through a pathway unrelated to CTEPH (pleiotropy); the ABO region,
-      associated with many unrelated traits, is the most frequent single shared region. Two or more shared
-      regions point to a shared mechanism; one region alone is weak evidence.
-
-- name: Genetics of the related conditions
-  items:
-  - key: genetics_mode
-    basis: Procedures (splenectomy, devices) and CTEPD have no Open Targets record, and malignancy is too broad a
-      phenotype. Traits related only by a shared signal, and platelet count (125 GWAS of a general blood trait),
-      keep only their shared signals, so that they do not flood the gene map with unrelated genes.
-
-- name: Genetic studies of {short} in the literature
-  items:
-  - key: query
-    basis_type: data check
-    basis: CTEPH in title or abstract and a genetics term in title or abstract, up to the fetch date. Checked at
-      every snapshot against a benchmark chosen independently of the search, the original genetic studies cited
-      by the curated seed of related conditions.
-    benchmark: [15640334, 18057060, 18931448, 19165231, 19420351, 10706510, 20182352, 23894515, 32397294, 36338413,
-                38116660, 38470220, 39150410, 39604025, 40726512]
-  - key: prescreen_terms
-    basis_type: data check
-    basis: A record whose title and abstract name no genetic-study term (polymorphism, genotype, allele, mutation,
-      sequencing, exome, genome-wide, HLA, SNP, rsID, germline, somatic, clonal hematopoiesis, Mendelian
-      randomization, haplotype, linkage, ...) is excluded before any model reads it. Checked at every snapshot on
-      the same benchmark as the search.
-    benchmark: [15640334, 18057060, 18931448, 19165231, 19420351, 10706510, 20182352, 23894515, 32397294, 36338413,
-                38116660, 38470220, 39150410, 39604025, 40726512]
-
-- name: Curation of the literature
-  items:
-  - key: textmining_review
-    value: each matched word read against its sentences
-    basis: Europe PMC text mining maps words to genes by dictionary, so a word that names something else in the
-      CTEPH literature makes a false link (sGC, soluble guanylate cyclase, mapped to SGCB; PTPA and BPA, pulmonary
-      angioplasty; aPL, antiphospholipid antibodies; TF, tissue factor, mapped to transferrin). Each matched word
-      was read against its sentences (2026-10-17); a word that names CTEPH or an ontology neighbor is a false link
-      too. A link whose every word is wrong is dropped, a wrong word is removed from a link that keeps another, and
-      a listed correction that matches no link stops the build.
 
 references:
   liley: "Liley, J., Newnham, M., Bleda, M., Bunclark, K., Auger, W., Barbera, J. A., ... & Toshner, M. (2024).
     Shared and distinct genomics of chronic thromboembolic pulmonary hypertension and pulmonary embolism. American
     Journal of Respiratory and Critical Care Medicine, 209(12), 1477–1485. PMID 38470220"
-  humbert: "Humbert, M., Kovacs, G., Hoeper, M. M., Badagliacca, R., Berger, R. M. F., Brida, M., ... & Rosenkranz,
-    S. (2022). 2022 ESC/ERS Guidelines for the diagnosis and treatment of pulmonary hypertension. European Heart
-    Journal, 43(38), 3618–3731. PMID 36017548"
-  delcroix: "Delcroix, M., Torbicki, A., Gopalan, D., Sitbon, O., Klok, F. A., Lang, I., ... & Simonneau, G. (2021).
-    ERS statement on chronic thromboembolic pulmonary hypertension. European Respiratory Journal, 57(6), 2002828.
-    PMID 33334946"
-  welch: "Welch, C. L., Aldred, M. A., Balachandar, S., Dooijes, D., Eichstaedt, C. A., Gräf, S., ... & Chung, W. K.
-    (2023). Defining the clinical validity of genes reported to cause pulmonary arterial hypertension. Genetics in
-    Medicine, 25(11), 100925. PMID 37422716"
-  jaiswal: "Jaiswal, S., Fontanillas, P., Flannick, J., Manning, A., Grauman, P. V., Mar, B. G., ... & Ebert, B. L.
-    (2014). Age-related clonal hematopoiesis associated with adverse outcomes. New England Journal of Medicine,
-    371(26), 2488–2498. PMID 25426837"
-  genovese: "Genovese, G., Kähler, A. K., Handsaker, R. E., Lindberg, J., Rose, S. A., Bakhoum, S. F., ... &
-    McCarroll, S. A. (2014). Clonal hematopoiesis and blood-cancer risk inferred from blood DNA sequence. New
-    England Journal of Medicine, 371(26), 2477–2487. PMID 25426838"
-  germain: "Germain, M., Chasman, D. I., de Haan, H., Tang, W., Lindström, S., Weng, L. C., ... & Morange, P. E.
-    (2015). Meta-analysis of 65,734 individuals identifies TSPAN15 and SLC44A2 as two susceptibility loci for
-    venous thromboembolism. The American Journal of Human Genetics, 96(4), 532–542. PMID 25772935"
-  sabater: "Sabater-Lleal, M., Huffman, J. E., de Vries, P. S., Marten, J., Mastrangelo, M. A., Song, C., ... &
-    Smith, N. L. (2019). Genome-wide association transethnic meta-analyses identifies novel associations regulating
-    coagulation factor VIII and von Willebrand factor plasma levels. Circulation, 139(5), 620–635. PMID 30586737"
-  cpic: "Johnson, J. A., Caudle, K. E., Gong, L., Whirl-Carrillo, M., Stein, C. M., Scott, S. A., ... & Wadelius, M.
-    (2017). Clinical Pharmacogenetics Implementation Consortium (CPIC) guideline for pharmacogenetics-guided
-    warfarin dosing: 2017 update. Clinical Pharmacology & Therapeutics, 102(3), 397–404. PMID 28198005"
-  ash2023: "Middeldorp, S., Nieuwlaat, R., Baumann Kreuziger, L., Coppens, M., Houghton, D., James, A. H., ... &
-    Iorio, A. (2023). American Society of Hematology 2023 guidelines for management of venous thromboembolism:
-    Thrombophilia testing. Blood Advances, 7(22), 7101–7138. PMID 37195076"

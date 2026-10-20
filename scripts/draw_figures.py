@@ -794,7 +794,9 @@ def genetic_studies(T, out, S, pal, C):
     pts.sort(key=lambda q: (q[1], q[0].year_n))
     x0 = min(x.year_n for x, _y in pts) - 2.5 if pts else hi
     for k, (x, y) in enumerate(pts):
-        lab = f'{x.first_author.split()[0]} {x.year}' + (f', {int(x.cases):,} cases' if x.cases == x.cases else '')
+        name = (str(x.first_author).split() or [''])[0]       # a record without an author list: its PMID
+        lab = (f'{name} {x.year}' if name else f'PMID {x.pmid}') + (f', {int(x.cases):,} cases' if x.cases == x.cases
+                                                                    else '')
         ty = -0.62 + k * (1.05 / max(len(pts) - 1, 1))
         ax.annotate(lab, (x.year_n, y), xytext=(x0, ty), textcoords='data', ha='right', va='center', fontsize=9.5,
                     color=S.INK_SOFT, arrowprops=dict(arrowstyle='-', color=S.NEUTRAL_D, lw=0.7, shrinkA=3,

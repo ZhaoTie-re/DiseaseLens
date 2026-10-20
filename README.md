@@ -23,7 +23,7 @@ own computer, offline (see below).
 
 | Disease | Open Targets ID | Snapshot | Genes on the evidence ladder | Genetic studies | Related conditions | GWAS regions | Nodes / edges |
 |---|---|---|---:|---:|---:|---:|---:|
-| **CTEPH**, chronic thromboembolic pulmonary hypertension | [EFO_0022954](https://platform.opentargets.org/disease/EFO_0022954) | 2026-10-19 | 67 | 49 | 136 | 9 | 3,040 / 5,750 |
+| **CTEPH**, chronic thromboembolic pulmonary hypertension | [EFO_0022954](https://platform.opentargets.org/disease/EFO_0022954) | 2026-10-19 | 66 | 48 | 234 | 9 | 5,594 / 9,711 |
 | **HPAH**, heritable pulmonary arterial hypertension | [MONDO_0017148](https://platform.opentargets.org/disease/MONDO_0017148) | 2026-10-19 | 45 | 113 | 17 | 0 | 1,537 / 3,671 |
 | **IPAH**, idiopathic pulmonary arterial hypertension | [MONDO_0001999](https://platform.opentargets.org/disease/MONDO_0001999) | 2026-10-20 | 77 | 141 | 56 | 0 | 3,691 / 7,669 |
 | **PVOD/PCH**, pulmonary veno-occlusive disease and/or pulmonary capillary haemangiomatosis | [MONDO_0018554](https://platform.opentargets.org/disease/MONDO_0018554) | 2026-10-20 | 16 | 51 | 24 | 0 | 1,386 / 2,008 |
@@ -47,7 +47,7 @@ flowchart LR
 
 ### 1. Download
 
-The graphs are published as one file, `diseaselens-results.zip` (46 MB; 161 MB unpacked), attached to the
+The graphs are published as one file, `diseaselens-results.zip` (57 MB; 215 MB unpacked), attached to the
 [latest release](https://github.com/ZhaoTie-re/DiseaseLens/releases/latest).
 
 macOS or Linux:
