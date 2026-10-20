@@ -505,7 +505,13 @@ table.mx th.mx-name { z-index: 4; }
 .mx-catl { position: sticky; left: 8px; }
 .mx-notes { display: grid; gap: 3px; font-size: 12.5px; color: var(--ink2); margin: 6px 0 4px; max-width: 1180px; }
 .mx-notes b { color: var(--ink); }
-.mx-tools { display: flex; align-items: center; gap: 12px; margin: 4px 0 6px; } .guide h4 { color: var(--head); font-size: 14px; margin: 16px 0 6px; }
+.mx-tools { display: flex; align-items: center; gap: 12px; margin: 4px 0 6px; }
+/* the matrix and its controls are one block as wide as the matrix (the page at most), centered: with few columns it
+   sits in the middle with its controls aligned to it, with many it fills the page and scrolls; text under it takes
+   the block's width without widening it */
+.mx-area { width: fit-content; max-width: 100%; margin: 0 auto; }
+.mx-area .cmap-cats { justify-content: flex-start; }
+.mx-area .mx-key, .mx-area .mx-notes, .mx-area > div > .note { width: 0; min-width: 100%; } .guide h4 { color: var(--head); font-size: 14px; margin: 16px 0 6px; }
 .guide ul { margin: 4px 0; padding-left: 20px; } .guide li { margin: 3px 0; } .guide .stps { margin-top: 6px; }
 /* the page on how the graph is built: at a glance, step by step, in detail */
 .glance { display: grid; grid-template-columns: 1fr 34px 1fr 34px 1fr; align-items: stretch; margin: 14px 0 8px; }
@@ -1279,7 +1285,7 @@ function conditionsPage(selected) {
     'evidence. Select a category or filter by name; click a condition to open its page, with every piece of its ' +
     'evidence. How the conditions are found and classified, and what each column means: ',
     h('a', {href: '#/build/relations'}, 'How it is built › Related conditions'), '.'),
-    btnBox, h('div', {class: 'tools mx-tools'}, filter, ownBtn, shown), matBox];
+    h('div', {class: 'mx-area'}, btnBox, h('div', {class: 'tools mx-tools'}, filter, ownBtn, shown), matBox)];
 }
 
 // tables of the build page: a plain table; a procedure (one row per step: what happens, who acts, the result here)
@@ -1499,7 +1505,8 @@ function regionsPage() {
             {label: 'In Open Targets', get: r => r.a.open_targets},
             {label: 'Conditions sharing it', num: true, get: r => (IN.get(r.id) || []).filter(e =>
               e.type === 'shares_region').length});
-  return out.concat([table(cols, regions, {filter: false}), h('h3', {}, 'Conditions sharing them'), regionMatrix()],
+  return out.concat([table(cols, regions, {filter: false}), h('div', {class: 'note'}, 'The conditions that share ' +
+    'each region, with their other evidence: ', h('a', {href: '#/conditions'}, 'Related conditions'), '.')],
                     notRegions());
 }
 

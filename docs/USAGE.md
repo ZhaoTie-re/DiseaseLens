@@ -347,10 +347,10 @@ results/
 
 | To | Open |
 |---|---|
-| browse the graph | `<key>_knowledge_graph.html`, in any browser, offline; "How it is built" explains every rule as applied to the disease |
+| browse the graph | `<key>_knowledge_graph.html`, in any browser, offline; "How it is built" gives the methods section by section, each rule with its value, its basis and the disease's counts |
 | read the evidence by question | the workbook; the summary workbook to send |
 | read the knowledge base with figures | `08.knowledge/<key>_knowledge_graph.md`, `09.figures/` |
-| see what the two models disagreed on, and the decision | `03.curated/model_review.tsv`; the workbook's curation sheet |
+| see what the two models disagreed on, and the decision | `03.curated/model_review.tsv`; the workbook's curation sheet; the viewer's "How it is built", section 6 |
 | see every curation rule applied | `03.curated/curation_log.tsv` |
 | query from the shell or Python | `python3 scripts/kg.py --disease <key> ...` (see the [README](../README.md#query-the-graph)) |
 

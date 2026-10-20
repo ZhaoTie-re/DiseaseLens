@@ -197,15 +197,24 @@ every disease; a gene takes its strongest level.
 | 6 | | Tested, not associated | tested and not associated in any study |
 | 7 | | No result about the disease itself | named in a genetic study without a result about the disease itself (the reason is given for each gene) |
 
-The viewer has one tab per question: **Overview** (the ladder by gene function), **Genes**, **Related conditions**
-(an evidence matrix: one row per condition, its publications, best design, direction, shared GWAS regions and own
-genetics), **GWAS regions**, **Genetic studies** (design, place, sample sizes, methods, findings), **Curation** (what
-was left out or corrected), and **How it is built**, the methods of the graph as a numbered document in the order of
-the build: each section with its procedure, its rules (value and basis) and this disease's counts, the part of the
-language models and every disagreement between the two readers with its decision, each section reachable by its own
-link (`#/build/relations`). Every gene,
-condition, region and study has its own page, with each edge and its source link. A link from a list opens in a new
-tab; the browser tab names the disease first.
+The viewer has one tab per question:
+
+| Tab | What it shows |
+|---|---|
+| **Overview** | the counts, the evidence ladder by gene function, the conditions sharing the GWAS regions |
+| **Genes** | every gene with its level, function and evidence |
+| **Related conditions** | an evidence matrix: one row per condition, grouped by category; its publications (shaded by bins), best design, direction, East Asian evidence, ontology relation and each shared GWAS region; its own GWAS and curated genes on demand. A name filter, a frozen header and first column, and notes on conditions whose own genetics are not read |
+| **GWAS regions** | each region with its lead variant, statistics, source and the number of conditions sharing it; signals that are not regions, with the reason |
+| **Genetic studies** | design, place, sample sizes, methods and findings of each study |
+| **Curation** | what was left out or corrected, and why |
+| **How it is built** | the methods of the graph as a numbered document in the order of the build, with a contents column: each section gives its answer in short, its procedure step by step and by whom, its rules with their values and basis, and this disease's counts; the part of the language models and every disagreement between the two readers with its decision. Each section has its own link (`#/build/relations`) |
+
+Every gene, condition, region and study has its own page, with each edge and its source link. A link from a list
+opens in a new tab; the browser tab names the disease first.
+
+![Related conditions: the evidence matrix of CTEPH](docs/img/viewer-conditions.png)
+
+![How it is built: the methods, section by section](docs/img/viewer-build.png)
 
 ![A gene page: evidence, findings and sources](docs/img/viewer-gene.png)
 
