@@ -385,7 +385,7 @@ process EXTRACT {
     publishDir path: { "${d.out_dir}" }, mode: 'copy'
 
     input:
-    tuple val(d), path(profile), path(records), path(fulltext), val(release)
+    tuple val(d), path(profile), path(records), path(fulltext), val(release), path(raw)
     val llm
     val offline
     path script
@@ -404,7 +404,7 @@ process EXTRACT {
 ${llm}
 JSON
     ${params.python} ${script} --records ${records} --fulltext ${fulltext} --profile ${profile} --llm llm.json \\
-        --offline ${offline} --api '${params.ot_api}' ${expect} --batch ${params.LlmBatch} --limit ${params.LlmLimit} \\
+        --offline ${offline} --api '${params.ot_api}' ${expect} --raw ${raw} --batch ${params.LlmBatch} --limit ${params.LlmLimit} \\
         --prescreen ${params.Prescreen} --out-dir 02.literature
     """
 }
@@ -795,7 +795,8 @@ workflow {
     // the release of a saved snapshot: the gene symbols of a rebuild are looked up in it
     def release = raw.map { k, r -> [k, new groovy.json.JsonSlurper().parse(file("${r}/meta.json")).data_version ?: ''] }
 
-    EXTRACT(keyed(prof).join(search).join(fulltext).join(release).map { k, p, s, f, rel -> tuple(spec[k], p, s, f, rel) },
+    EXTRACT(keyed(prof).join(search).join(fulltext).join(release).join(raw)
+                .map { k, p, s, f, rel, r -> tuple(spec[k], p, s, f, rel, r) },
             llm, offline, script_file('extract_genetics.py'), lib, llmlib)
     def literature = keyed(EXTRACT.out.dir)
 

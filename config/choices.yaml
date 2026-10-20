@@ -158,22 +158,25 @@ groups:
   - key: ladder
     item: Evidence ladder of a {short} gene
     value: 1 G or C; 2 G*; 3 associated in ≥ 2 studies; 4 associated in 1 study; 5 variant identified without a
-      test; 6 tested, not associated; 7 other result only
+      test; 6 tested, not associated; 7 no result about {short} itself
     basis_type: source
     basis: A gene takes its strongest level. Genome-wide significance and curated gene–disease evidence (level 1)
       come first; association in two or more studies (level 3) ranks above a single study because replication is
       what makes an association credible rather than a chance finding. Studies are counted, not independent
       samples. Levels 3–6 count only findings about {short} itself; a gene whose findings concern only an outcome
-      within {short} stays at level 7.
+      within {short} or another trait, or that a study names without an association, a variant or a negative test,
+      stays at level 7, with the reason given for each gene (user, 2026-10-20 - formerly "other result only").
     refs: [kraft]
     used_in: sheets 1, 2; evidence grid
   - key: themes
     item: Function of a gene (gene theme)
-    value: the Reactome top-level pathway of the gene
+    value: the curated themes of the profile; for a gene they do not list, or without them, the Reactome top-level
+      pathway of the gene
     basis_type: source
-    basis: Without curated gene themes in the disease profile, each gene joins its Reactome top-level pathway that
-      holds the most of the disease's genes ("Disease", a mirror of disease variants, is not used). Genes without a
-      Reactome pathway are listed as "Other genes".
+    basis: Each gene the curated themes do not list (all genes, without curated themes) joins its Reactome top-level
+      pathway that holds the most of these genes ("Disease", a mirror of disease variants, is not used). Genes
+      without a Reactome pathway in Open Targets are listed as "No Reactome pathway" (ENG and TBX4 have none in
+      Open Targets 26.09).
     refs: [reactome]
     used_in: sheets 1, 2; evidence grid
 

@@ -172,7 +172,9 @@ Every gene with genetic evidence for the disease takes its strongest level:
 4. associated in one study;
 5. a variant identified, without an association test (case reports, sequencing series);
 6. tested, not associated;
-7. other result only.
+7. no result about the disease itself: a result about an outcome within it or about another trait, or the gene named
+   without an association, a variant or a negative test (an expression or proteomic result, a clonality marker, a
+   gene listed in the methods); the reason is given for each gene (`level_note`).
 
 Level 3 ranks above level 4 because replication is what makes an association credible rather than a chance finding
 (Kraft 2009). Studies are counted, not independent samples: some share cases.
@@ -191,11 +193,13 @@ The second axis of the ladder is the function of a gene. It comes from:
   VWF, FVIII, FXI; thrombophilia and hemostasis; HLA and immunity; clonal hematopoiesis, MPN and platelets; PAH genes
   (ClinGen, Welch 2023); endothelium and vascular tone; warfarin pharmacogenetics. A gene belongs to the first theme
   that lists it.
-- **Otherwise, automatically:** each gene joins its Reactome top-level pathway that holds the most of the disease's
-  genes, ties broken alphabetically. The top level "Disease", a mirror of disease variants of normal pathways, is not
-  used. The automatic themes are also written as `04.tables/themes_auto.yaml`, a draft to curate.
+- **Reactome, for every gene the curated themes do not list** (every gene, without curated themes): the gene joins
+  its Reactome top-level pathway that holds the most of these genes, ties broken alphabetically. The top level
+  "Disease", a mirror of disease variants of normal pathways, is not used. Without curated themes, the automatic
+  themes are also written as `04.tables/themes_auto.yaml`, a draft to curate.
 
-Genes without a theme are listed as "Other genes", and findings without a gene as "No gene named".
+Genes with no Reactome pathway in Open Targets are listed as "No Reactome pathway" (ENG and TBX4, in release 26.09),
+and findings without a gene as "No gene named".
 
 ## 4. Which conditions are related, and why (`scripts/relations.py`, `scripts/resolve.py`)
 

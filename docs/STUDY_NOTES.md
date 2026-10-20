@@ -210,6 +210,12 @@ The first snapshot of that build was deleted on 2026-10-16 at the user's request
       noncirrhotic portal fibrosis ("NCPF") and autoimmune thyroid disease ("AITD"), HPAH lost fenfluramine exposure
       ("exposure to fenfluramine"). A quote now names a condition also by its abbreviation in parentheses or by every
       word of its name but the words of use or exposure.
+    - **Two labels the user asked about** (2026-10-20): "Other genes" mixed genes without a Reactome pathway in Open
+      Targets (ENG, TBX4, ATP13A3) with genes that CTEPH's curated themes did not list (MYH7B, MUC6, SERPINA1, ...).
+      A gene the curated themes do not list now joins its Reactome top-level pathway, and the group of the rest is
+      named "No Reactome pathway". Level 7, "Other result only", is now "No result about <disease> itself", with the
+      reason for each gene: an outcome within the disease (GNB3 in CTEPH), or a gene named without a genetic result
+      (an expression or proteomic result, a clonality marker, a gene listed in the methods).
     - Not changed: the genetics prompt (its byte identity keeps the cached answers of every disease); a profile's
       `scope` states which patients count for a subtype. A rebuild does not re-read the relations (METHODS §11).
   - **The repository holds the pipeline only** (user, 2026-10-19). Snapshots, the model cache and the slides stay on the

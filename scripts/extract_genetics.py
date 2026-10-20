@@ -67,6 +67,30 @@ def map_symbols(api, symbols):
     return out
 
 
+def ladder_genes(raw):
+    """{symbol: Ensembl ID} of the genes of the disease's GWAS regions (published, and the top locus-to-gene genes of
+    its credible sets) and of its curated gene evidence, from its saved 00.raw ({} without one)."""
+    out = {}
+    if not raw:
+        return out
+    R = Path(raw)
+    if (R / 'published_loci.json.gz').exists():
+        for r in load_json(R / 'published_loci.json.gz').get('regions') or []:
+            out.update(r.get('ensembl') or {})
+    if (R / 'gwas.json.gz').exists():
+        for s in load_json(R / 'gwas.json.gz').get('studies') or []:
+            for c in s.get('credible_sets') or []:
+                t = (((c.get('l2GPredictions') or {}).get('rows') or [{}])[0].get('target') or {})
+                if t.get('approvedSymbol'):
+                    out.setdefault(t['approvedSymbol'], t['id'])
+    if (R / 'mendelian.json.gz').exists():
+        for ts in (load_json(R / 'mendelian.json.gz').get('mendelian_targets') or {}).values():
+            for t in ts:
+                if t.get('symbol') and t.get('id'):
+                    out.setdefault(t['symbol'], t['id'])
+    return out
+
+
 def pathways_of(api, ens):
     """{symbol: [Reactome top-level pathways]} of the given Ensembl IDs (the automatic gene themes)."""
     out = {}
@@ -302,6 +326,8 @@ def main():
     ap.add_argument('--prescreen', default='true', help='drop reviews and records without a genetic-study term '
                     'before the model reads them')
     ap.add_argument('--api', required=True, help='Open Targets GraphQL (symbol check)')
+    ap.add_argument('--raw', default='', help='00.raw of the disease: the genes of its GWAS regions and curated evidence '
+                    'also get their Reactome pathways (gene_pathways.tsv)')
     ap.add_argument('--expect-release', default='', help='rebuild: the Open Targets release of the snapshot; the '
                     'symbol lookups stop if the API serves another')
     ap.add_argument('--out-dir', default='.')
@@ -461,9 +487,16 @@ def main():
     F['ensembl_id'] = F.symbol.map(ens).fillna('')
     if len(S):
         S['gene_symbols'] = S.gene_symbols.map(lambda v: '; '.join(x for x in str(v).split('; ') if x in ens))
-    pw = pathways_of(a.api, {s: ens[s] for s in set(F.symbol) if s}) if ens and len(F) else {}
+    # the Reactome pathways of every gene that can enter the ladder: the findings' genes, and the genes of the GWAS
+    # regions and of the curated evidence of the disease, which may be no associated target of it (NME7 in CTEPH)
+    want = {s: ens[s] for s in set(F.symbol) if s and s in ens}
+    want.update({s: e for s, e in ladder_genes(a.raw).items() if s not in want})
+    if want and a.expect_release and not syms:
+        rel = release(a.api)['data_version']
+        assert rel == a.expect_release, f'Open Targets serves {rel}, the snapshot is {a.expect_release}'
+    pw = pathways_of(a.api, want) if want else {}
     write_tsv(F, out / 'findings.tsv')
-    write_tsv(pd.DataFrame([{'symbol': s, 'ensembl_id': ens.get(s, ''), 'top_level_pathways': '; '.join(v)}
+    write_tsv(pd.DataFrame([{'symbol': s, 'ensembl_id': want.get(s, ''), 'top_level_pathways': '; '.join(v)}
                             for s, v in sorted(pw.items())], columns=['symbol', 'ensembl_id', 'top_level_pathways']),
               out / 'gene_pathways.tsv')
     write_tsv(pd.DataFrame(mrows, columns=['pmid', 'field', 'value', 'quote', 'source', 'agreement']),

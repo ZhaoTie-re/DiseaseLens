@@ -41,11 +41,12 @@ groups:
       within CTEPH (e.g. GNB3) stays at level 7.
     refs: [liley, kraft]
   - key: themes
-    value: 8 themes, each with its basis
+    value: 8 curated themes, each with its basis; a gene they do not list, its Reactome top-level pathway
     basis: Genes are grouped by the function their sources assign them, and each theme names its source (the
       fibrinogen chains; determinants of VWF and FVIII levels; inherited thrombophilia and VTE loci; HLA; clonal
-      hematopoiesis; PAH genes curated by ClinGen; warfarin pharmacogenetics). Genes no source groups are listed
-      as "Other genes".
+      hematopoiesis; PAH genes curated by ClinGen; warfarin pharmacogenetics). A gene the themes do not list joins
+      its Reactome top-level pathway, as for a disease without curated themes (user, 2026-10-20); a gene with no
+      Reactome pathway in Open Targets is listed as "No Reactome pathway".
     refs: [sabater, ash2023, germain, jaiswal, genovese, welch, cpic, uniprot]
 
 - name: Related conditions

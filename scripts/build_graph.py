@@ -44,7 +44,8 @@ def schema_of(P):
                        'ot_ids']),
         'gene': ('Ensembl gene ID', f'a gene with genetic evidence for {s} or a related condition, or a text-mined '
                  f'{s} target',
-                 ['disease_level', 'disease_code', 'disease_level_label', 'theme', 'n_related_conditions',
+                 ['disease_level', 'disease_code', 'disease_level_label', 'disease_level_note', 'theme',
+                  'n_related_conditions',
                   'disease_ot_score', 'n_text_mined_publications', 'pathways']),
         'region': ('region:<its name: the gene the publication names, else its top locus-to-gene gene, else the '
                    'position of its lead variant>', f'a genome-wide significant GWAS region of {s} (published, '
@@ -201,6 +202,7 @@ def main():
         node('gene', e, s, disease_level=(int(lv.level) if lv is not None else ''),
              disease_code=(lv.code if lv is not None else ''),
              disease_level_label=(lv.level_label if lv is not None else ''),
+             disease_level_note=(lv.get('level_note', '') if lv is not None else ''),
              theme=(lv.theme if lv is not None else ''), n_related_conditions=int(nrel.get(e, 0)),
              disease_ot_score=(t.score if t is not None else ''), n_text_mined_publications=int(nlit.get(e, 0)),
              pathways=(t.themes if t is not None and nlit.get(e, 0) else ''))

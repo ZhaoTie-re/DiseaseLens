@@ -16,7 +16,7 @@ graph as tables, JSON and SQLite. Several diseases can be built in one run.
   |---|---|---|
   | 1 | G / C | a gene of a genome-wide significant GWAS region of the disease (G), or curated gene–disease evidence for it (C) |
   | 2 | G\* | a gene of a region significant only in a secondary analysis of a published GWAS |
-  | 3–7 | | from the genetic studies in PubMed: associated in two or more studies; in one; a variant identified without a test; tested, not associated; other result |
+  | 3–7 | | from the genetic studies in PubMed: associated in two or more studies; in one; a variant identified without a test; tested, not associated; no result about the disease itself (the reason given for each gene) |
 
   Levels 3–6 count only findings about the disease itself; a finding about an outcome among patients is kept and
   marked, and does not raise a level.

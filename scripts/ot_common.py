@@ -442,7 +442,8 @@ def countries_named(text, C):
         s = s.replace(w, ' ')
     names = {n: n for n in C.get('names') or []} | (C.get('aliases') or {})
     return {v for k, v in names.items() if re.search(rf'(?<![A-Za-z]){re.escape(k)}(?![A-Za-z])', s)}
-OTHER_GENES, NO_GENE = 'Other genes', 'No gene named'
+# the group of a gene that neither the curated themes nor Reactome place; findings that name no gene
+OTHER_GENES, NO_GENE = 'No Reactome pathway', 'No gene named'
 POSITIVE = ('associated', 'enriched')
 CURATED = 'Curated'   # display name of the curated / Mendelian gene evidence ("Mendelian" in the tables)
 
@@ -515,7 +516,7 @@ def assign_themes(findings, themes):
 def auto_themes(genes, pathways):
     """Gene themes for a disease without curated ones: each gene joins its Reactome top-level pathway that holds the
     most of these genes (ties: alphabetical); the top level 'Disease' (disease variants of normal pathways) is not a
-    function. Genes without a Reactome pathway are left to 'Other genes'. pathways: {symbol: [top-level terms]}."""
+    function. Genes without a Reactome pathway are left to OTHER_GENES. pathways: {symbol: [top-level terms]}."""
     from collections import Counter
     tops = {g: sorted({t for t in pathways.get(g) or [] if t and t != 'Disease'}) for g in genes}
     count = Counter(t for ts in tops.values() for t in ts)
@@ -531,6 +532,21 @@ def auto_themes(genes, pathways):
                              'automatically: the top-level pathway that holds the most of the disease\'s genes.',
                     'refs': ['reactome'], 'genes': gs, 'automatic': True})
     return out
+
+
+def themes_with_fallback(curated, genes, pathways):
+    """The curated gene themes of a disease, then, for each gene they do not list, its Reactome top-level pathway as
+    auto_themes() assigns it among those genes (a theme name a curated theme has is followed by "(Reactome)"); a
+    gene with neither is left to OTHER_GENES."""
+    listed = {g for th in curated for g in th['genes']}
+    names = {th['name'] for th in curated}
+    auto = auto_themes(sorted(set(genes) - listed), pathways)
+    for th in auto:
+        if th['name'] in names:
+            th['name'] = th['short'] = f'{th["name"]} (Reactome)'
+            th['key'] = 'reactome_' + th['key']
+        th['description'] = th['description'] + ' (a gene the curated themes do not list)'
+    return [dict(th, automatic=False) for th in curated] + auto
 
 
 def gene_tallies(f, about, within):
@@ -696,7 +712,7 @@ LITERATURE_LEVELS = {3: ('', 'Associated in two or more studies'),
                      4: ('', 'Associated in one study'),
                      5: ('', 'Variant identified, no association test'),
                      6: ('', 'Tested, not associated'),
-                     7: ('', 'Other result only')}
+                     7: ('', 'No result about {short} itself')}     # each gene with its reason (level_note)
 
 
 def ladder_spec(P, with_curated):
@@ -707,7 +723,7 @@ def ladder_spec(P, with_curated):
     gs = P.fill(lab.get('G*', 'Genome-wide significant only in a secondary analysis of a published GWAS'))
     c = P.fill('Curated gene–disease evidence for {short}')
     levels = {1: ('G / C', f'{g}, or {c[0].lower()}{c[1:]}') if with_curated else ('G', g), 2: ('G*', gs)}
-    levels.update(LITERATURE_LEVELS)
+    levels.update({k: (code, P.fill(label)) for k, (code, label) in LITERATURE_LEVELS.items()})
     codes = {'G': g, 'G*': gs, 'C': c, 'L': P.fill('A positive finding in a genetic study of {short}')}
     evidence = {'GWAS': 'G', P.secondary_label: 'G*', 'Mendelian': 'C', 'Literature': 'L'}
     return {'levels': {str(k): list(v) for k, v in levels.items()}, 'codes': codes, 'evidence_codes': evidence}
@@ -721,7 +737,7 @@ def load_ladder(tables):
 
 LADDER_COLUMNS = ['symbol', 'ensembl_id', 'level', 'code', 'level_label', 'theme', 'n_studies', 'associated',
                   'not_associated', 'identified', 'other', 'within_disease', 'eas_studies', 'gwas_region',
-                  'gwas_rsid', 'gwas_p', 'gwas_v', 'gwas_tier', 'gwas_or', 'curated_sources', 'pmids']
+                  'gwas_rsid', 'gwas_p', 'gwas_v', 'gwas_tier', 'gwas_or', 'curated_sources', 'pmids', 'level_note']
 
 
 def gene_ladder(findings, studies, themes, regions, about, within, curated=None, spec=None):
@@ -760,7 +776,16 @@ def gene_ladder(findings, studies, themes, regions, about, within, curated=None,
             level, code = 2, 'G*'
         else:
             level, code = (3 if assoc >= 2 else 4 if assoc == 1 else 5 if ident else 6 if nota else 7), ''
-        label = codes.get(code) or LITERATURE_LEVELS.get(level, ('', ''))[1]
+        label = codes.get(code) or ((spec or {}).get('levels') or {}).get(str(level), ('', ''))[1] or \
+            LITERATURE_LEVELS.get(level, ('', ''))[1].replace('{short}', about)
+        note = ''
+        if level == 7:                     # why: the gene's findings are about something else, or name it only
+            other_kinds = f[f.association_with != about].groupby('association_with').pmid.nunique()
+            parts = [f'{n} {"study" if n == 1 else "studies"} with a result about {k}' for k, n in other_kinds.items()]
+            if oth:
+                parts.append(f'{oth} {"study" if oth == 1 else "studies"} naming it without an association, a variant '
+                             f'or a negative test of {about}')
+            note = '; '.join(parts)
         ens = ((r or {}).get('ensembl', {}).get(g) or (c or {}).get('ensembl_id')
                or (f.ensembl_id.iloc[0] if len(f) and 'ensembl_id' in f else ''))
         rows.append({'symbol': g, 'ensembl_id': ens, 'level': level, 'code': code, 'level_label': label,
@@ -771,7 +796,8 @@ def gene_ladder(findings, studies, themes, regions, about, within, curated=None,
                      'gwas_region': (r or {}).get('gene', ''), 'gwas_rsid': (r or {}).get('rsid', ''),
                      'gwas_p': (r or {}).get('p'), 'gwas_v': (r or {}).get('v'), 'gwas_tier': (r or {}).get('tier'),
                      'gwas_or': (r or {}).get('or'), 'curated_sources': '; '.join((c or {}).get('sources') or []),
-                     'pmids': ' '.join(sorted(set(f.pmid), key=lambda x: int(x) if str(x).isdigit() else 0))})
+                     'pmids': ' '.join(sorted(set(f.pmid), key=lambda x: int(x) if str(x).isdigit() else 0)),
+                     'level_note': note})
     out = pd.DataFrame(rows, columns=LADDER_COLUMNS)
     if not len(out):
         return out

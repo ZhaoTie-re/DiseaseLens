@@ -1173,7 +1173,8 @@ def gene_region(D, x):
 
 def gene_tip(D, x):
     """The evidence behind one gene of the ladder, for a cell note."""
-    out = [f'{x.symbol}: level {x.level}, {lower1(x.level_label)}']
+    out = [f'{x.symbol}: level {x.level}, {lower1(x.level_label)}'
+           + (f' ({x.level_note})' if getattr(x, 'level_note', '') else '')]
     g = gene_region(D, x)
     if g:
         v = g['vals']
@@ -1263,7 +1264,8 @@ def spec_gene_map(D):
             basis_ = t.get('basis') or t['description']
             nts.append(('', ['   ', ('b', D['short'][t['name']]), f': {basis_} ({refs}).' if refs else
                              f': {basis_.rstrip(".")}.']))
-    nts.append(('', ['   ', ('b', OTHER_GENES), ': genes no source above groups.']))
+    nts.append(('', ['   ', ('b', OTHER_GENES), ': genes that neither the themes above nor Reactome (Open Targets) '
+                     'place.']))
     nts.append(abbrev([short, 'GWAS'], cols, rows, brief, nts))
     src = (['the ' + short + ' GWAS'] if len(rg) else []) + (['curated gene evidence'] if len(cur) else [])
     top = 'Levels 1–2' if has_gstar(D) else 'Level 1'
@@ -1291,8 +1293,9 @@ def level_what(D, lv):
             4: f'An association with {short} in one genetic study.',
             5: f'Variants found in people with {short} (case reports, sequencing) without an association test.',
             6: f'Tested and not associated with {short} in every study that tested the gene.',
-            7: f'Only other results: an association with an outcome within {short}, or a functional or descriptive '
-               'result.'}[lv]
+            7: f'No result about {short} itself: a result about an outcome within {short} or about another trait, '
+               f'or the gene named without an association, a variant or a negative test of {short}; the reason is '
+               'given for each gene.'}[lv]
 
 
 def spec_disease_genes(D):
@@ -1347,6 +1350,8 @@ def spec_disease_genes(D):
                 txt += [f'Curated gene–disease evidence for {short}: {x.curated_sources}. ']
             if x.n_studies:
                 tt = tally_text(x, short) or f'reported without a result on {short} itself'
+                if getattr(x, 'level_note', ''):
+                    tt = f'{tt}; level 7: {x.level_note}'
                 txt += [tt[0].upper() + tt[1:] + f' ({x.n_studies} '
                         f'{"study" if x.n_studies == 1 else "studies"}' +
                         (f', {x.eas_studies} East Asian' if x.eas_studies else '') + '). ']
@@ -1762,7 +1767,7 @@ def spec_shared_genes(D):
     ladder = f'1 {D["LADDER"][1][0]}; ' + ('2 G*; ' if gs else '')
     nts = [('a', [f'Evidence level of the gene in {short} (sheet {SN["gene_map"].split()[0]}): {ladder}3 associated in '
                   'two or more studies; 4 in one; 5 variant identified without a test; 6 tested, not associated; '
-                  '7 other result only.']),
+                  f'7 no result about {short} itself.']),
            ('b', [f'Related conditions (not counting {short}) in which the gene has genetic evidence.']),
            ('', ['G for a related condition: ' + basis(D, 'l2g') + (' G and G*' if gs else ' G') + f' for {short}: ' +
                  basis(D, 'g_codes')]),

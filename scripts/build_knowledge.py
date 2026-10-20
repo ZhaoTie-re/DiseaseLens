@@ -175,7 +175,8 @@ def caveats(P, rg, single, n_readers, wrong_links, automatic):
         'The place of a study is the country of its first author\'s institution (PubMed affiliation); a multinational '
         'study takes the place of its lead institution, and the population the abstract states is kept beside it.',
         'The evidence ladder counts studies, not independent samples: some studies share cases. ' +
-        ('A gene with several Reactome top-level pathways sits in the one that holds the most of the disease\'s genes.'
+        ('A gene with several Reactome top-level pathways sits in the one that holds the most of the disease\'s genes'
+         + ('; a gene the curated themes list sits in the first that lists it.' if P.themes else '.')
          if automatic else 'A gene with several functions sits in the first gene theme that lists it.'),
         'Generated summaries are syntheses of the listed source records; they cite only those records, but they are '
         'not a systematic review.',
@@ -240,7 +241,7 @@ def main():
                                   'check'])
     changes, chj = read_tsv(a.changes), json.loads(Path(a.changes_json).read_text())
     themes = load_themes(T)
-    automatic = any(t.get('automatic') for t in themes)
+    automatic = any(t.get('automatic') for t in themes)     # Reactome themes, alone or for the genes not curated
     choices, _refs = load_choices(P, json.loads(Path(a.run_params).read_text()), T)
     choice = {it['key']: it for g in choices for it in g['items']}
     basis = lambda k: (choice.get(k) or {}).get('basis', '')  # noqa: E731

@@ -705,7 +705,7 @@ function edgeSection(id, key, list) {
 const FACTS = {
   gene: [['disease_level', `${S} evidence level`, v => `${v} — ${(D.ladder[v] || [])[1] || ''}` +
           ((D.ladder[v] || [])[0] ? ` (${D.ladder[v][0]})` : '')], ['theme', 'Function'],
-         ['n_related_conditions', 'Related conditions with genetic evidence'],
+         ['disease_level_note', 'Why this level'], ['n_related_conditions', 'Related conditions with genetic evidence'],
          ['n_text_mined_publications', `Text-mined ${S} publications`],
          ['disease_ot_score', `Open Targets association score with ${S}`], ['pathways', 'Reactome pathways']],
   condition: [['category', 'Category'], ['sources', 'Evidence types'], ['n_clinical', 'Clinical evidence items'],
@@ -847,7 +847,7 @@ function genesPage() {
       {label: `${S} level`, num: true, get: g => g.a.disease_level, cell: g => g.a.disease_level === undefined ? '' :
         h('span', {class: 'lv' + g.a.disease_level, style: 'padding:0 6px'},
           `${g.a.disease_level} ${g.a.disease_code || ''}`)},
-      {label: 'Evidence', get: g => g.a.disease_level_label},
+      {label: 'Evidence', get: g => g.a.disease_level_label + (g.a.disease_level_note ? ` (${g.a.disease_level_note})` : '')},
       {label: 'Function', get: g => g.a.theme},
       {label: 'Related conditions', num: true, get: g => g.a.n_related_conditions},
       {label: 'Text-mined publications', num: true, get: g => g.a.n_text_mined_publications}],
@@ -1374,8 +1374,9 @@ function buildPage() {
     card('Evidence level of a gene', 'The strongest level it reaches: ' + ladder.join('; ') + '. Levels 3–6 count ' +
       'only findings about the disease itself.',
       tallyText(count(genes, g => 'level ' + lvl(g)), Object.keys(D.ladder).map(k => 'level ' + k)) + '.'),
-    card('Function of a gene', 'The functions of the profile; otherwise the Reactome top-level pathway holding most ' +
-      `genes of the ladder (“Disease” excluded), the rest “${D.other_genes}”.`,
+    card('Function of a gene', 'The functions of the profile; for a gene they do not list, or without them, the ' +
+      'Reactome top-level pathway holding most genes of the ladder (“Disease” excluded); a gene without a Reactome ' +
+      `pathway in Open Targets: “${D.other_genes}”.`,
       `${byType('theme').length} functions (${L.themes || 'curated'}).`),
     card('Design and place of a study', 'The design class from the design the readers quote; the place from the ' +
       'first author\'s institution (PubMed, else Europe PMC); East Asian when done there or stated by the abstract.',

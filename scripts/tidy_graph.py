@@ -62,6 +62,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ot_common import (EAS_COUNTRIES, NOT_REGION_COLS, SHARED_SIGNAL, SHARED_SIGNAL_OLD, auto_themes, check_themes,  # noqa: E402
                        curated_links, disease_regions, gene_ladder, ladder_spec, mining_links, p_unicode, relates,
+                       themes_with_fallback,
                        legacy_path, load_json, load_profile, log, num, read_tsv, shared_relations, us_english,
                        write_json, write_tsv)
 
@@ -415,9 +416,12 @@ def main():
     cm = M[M.node_id == CORE]
     curated = {s: {'ensembl_id': g.ensembl_id.iloc[0], 'sources': sorted(set(g.source))}
                for s, g in cm.groupby('symbol')} if len(cm) else {}
-    themes = check_themes(P.themes) if P.themes else None
-    if themes is None:
-        genes = sorted({s for s in cfi.symbol if s} | {g for r in regions for g in r['genes']} | set(curated))
+    # the curated themes of the profile, with each gene they do not list in its Reactome top-level pathway; without
+    # curated themes, Reactome for every gene (written as a draft to curate)
+    genes = sorted({s for s in cfi.symbol if s} | {g for r in regions for g in r['genes']} | set(curated))
+    if P.themes:
+        themes = themes_with_fallback(check_themes(P.themes), genes, pathways)
+    else:
         themes = auto_themes(genes, pathways)
         (out / 'themes_auto.yaml').write_text(yaml.safe_dump({'themes': themes}, sort_keys=False, allow_unicode=True,
                                                              width=118))
@@ -451,7 +455,8 @@ def main():
     for f in ('studies', 'findings', 'methods', 'screening'):
         shutil.copy(Q / f'{f}.tsv', out / f'disease_{f}.tsv')
     write_json(spec, out / 'ladder.json')
-    write_json({'source': 'curated' if P.themes else 'Reactome (automatic)', 'themes': themes}, out / 'themes.json')
+    write_json({'source': 'curated, and Reactome for the genes they do not list' if P.themes else 'Reactome (automatic)',
+                'themes': themes}, out / 'themes.json')
     stats = {'release': meta['data_version'], 'api_version': meta['api_version'], 'fetch_date': meta['fetch_date'],
              # other Open Targets entries whose evidence the disease takes (its profile's evidence_also)
              'evidence_also': fc.get('evidence_also') or [],
@@ -477,7 +482,7 @@ def main():
              'regions_from_open_targets': int(reg.source.eq('Open Targets').sum()),
              'disease_genes_by_level': {int(k): int(v) for k, v in ladder.level.value_counts().sort_index().items()},
              'disease_genes_by_code': {k: int(v) for k, v in ladder.code.value_counts().items() if k},
-             'curated_genes': len(curated), 'themes': 'curated' if P.themes else 'Reactome (automatic)',
+             'curated_genes': len(curated), 'themes': 'curated, and Reactome for the genes they do not list' if P.themes else 'Reactome (automatic)',
              'credible_sets': int(loci[loci.node_id != CORE].study_locus_id.nunique()),
              'disease_credible_sets': int(loci[loci.node_id == CORE].study_locus_id.nunique()),
              'eas_studies': int(studies[(studies.node_id != CORE) & studies.eas.astype(bool)].study_id.nunique()),

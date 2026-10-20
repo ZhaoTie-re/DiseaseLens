@@ -133,7 +133,7 @@ def evidence_grid(T, out, S, pal, C, themes, curated_min):
     s = C.short
     L['level'] = L.level.astype(int)
     short = {t['name']: t['short'] for t in themes}
-    short[OTHER_GENES] = 'Other genes'
+    short[OTHER_GENES] = OTHER_GENES
     cols = [t['name'] for t in themes if (L.theme == t['name']).any()] + \
         ([OTHER_GENES] if (L.theme == OTHER_GENES).any() else []) + \
         sorted(set(L.theme) - {t['name'] for t in themes} - {OTHER_GENES})
@@ -165,14 +165,17 @@ def evidence_grid(T, out, S, pal, C, themes, curated_min):
     # a row is as tall as its gene lines, or as its label when that runs to three lines or more
     rh = {lv: max(lines[lv] * LH, 0.19 * len(labs[lv]) - 0.11) + 0.2 for lv in levels}
     n_st = int(T['studies'].pmid.nunique())
-    automatic = any(t.get('automatic') for t in themes)
+    automatic = all(t.get('automatic') for t in themes)       # every theme from Reactome (no curated ones)
+    mixed = not automatic and any(t.get('automatic') for t in themes)
     foot = ('Each gene sits at its strongest level. ' + gwas_levels(C, T['regions'], L, curated_min) +
             f' Levels 3–7: what the {n_st} genetic studies of {s} in PubMed report '
             f'for the gene, each finding checked against its abstract; an association in two or more studies ranks '
             f'above one, and levels 3–6 count only findings about {s} itself (a gene associated only with an outcome '
             f'within {s} stays at level 7). '
             + ('Columns: the function of the gene, its Reactome top-level pathway (workbook sheet 11). '
-               if automatic else 'Columns: the function of the gene; each theme has its source (workbook sheet 11). ')
+               if automatic else 'Columns: the function of the gene: the curated themes, each with its source, and for a '
+               'gene they do not list its Reactome top-level pathway (workbook sheet 11). ' if mixed else
+               'Columns: the function of the gene; each theme has its source (workbook sheet 11). ')
             + 'East Asian evidence: workbook sheet 9.')
     fl = textwrap.wrap(foot, 215)
     W = LW + CW * len(cols) + NW
@@ -651,7 +654,7 @@ def gene_map(T, out, S, pal, C, l2g_min, curated_min):
               (f'Rows: all {ng} genes studied genetically in {s}, by evidence level (square at the left: '
                f'1 {C.LADDER[1][0]}, ' + (f'2 {C.LADDER[2][0]}, ' if has_gs else '') + '3 associated in two or more '
                'studies, 4 in one, 5 variant '
-               'identified without a test, 6 tested, not associated, 7 other result), then by the number of related '
+               f'identified without a test, 6 tested, not associated, 7 no result about {s} itself), then by the number of related '
                f'conditions in which the gene has G or C evidence (right). {sum(1 for g in genes if not nrel[g])} '
                f'genes have no such condition: they are specific to {s} in this map.', ''),
               (f'Columns: {s}, then the {nn - 1} related conditions with G or C evidence for at least one of these '
@@ -841,15 +844,18 @@ def readme(st, D, C, tidy, a, themes):
     if eg:
         lv = num(L.level)
         within = sorted(L[(lv == 7) & (num(L.within_disease) > 0)].symbol)
-        auto = any(t.get('automatic') for t in themes)
+        auto = all(t.get('automatic') for t in themes)
+        mixed = not auto and any(t.get('automatic') for t in themes)
         out['evidence_grid'] = (
             'Rows: the evidence ladder, strongest first. ' + gwas_levels(C, rg, L, a.curated_min, readme=True) +
             f' Levels 3–7 come from the {eg["studies"]} genetic studies of {s} in PubMed: associated in two or more '
-            'studies; in one; a variant identified without an association test; tested, not associated; other result '
-            f'only. Levels 3–6 count only findings about {s} itself: a gene associated only with an outcome within '
+            'studies; in one; a variant identified without an association test; tested, not associated; no result '
+            f'about {s} itself (the reason for each gene is in the workbook). Levels 3–6 count only findings about {s} itself: a gene associated only with an outcome within '
             f'{s}' + (f' (e.g. {", ".join(within[:2])})' if within else '') + ' stays at level 7. ' +
             ('Columns: the function of the gene, its Reactome top-level pathway (gene theme). ' if auto else
-             'Columns: the function of the gene (gene theme), each theme with its source. ') +
+             ('Columns: the function of the gene (gene theme): the curated themes, each with its source, and for a '
+              'gene they do not list its Reactome top-level pathway. ' if mixed else
+              'Columns: the function of the gene (gene theme), each theme with its source. ')) +
             'A gene sits at its strongest level, in one cell; East Asian evidence is in sheet 9 of the workbook. '
             f'Shown: {eg["genes"]} genes in {eg["themes"]} columns ('
             + ', '.join(f'level {k}: {v}' for k, v in eg['by_level'].items()) + ').')
