@@ -159,7 +159,7 @@ ontology:
 | `relations.query` | terms AND relation designs AND relation words | only to replace the whole relation search |
 | `evidence_also` | proposed for a grouping name ("A and/or B") | other Open Targets entries whose evidence counts as the disease's |
 | `ontology` | `parents`, `siblings`, `children` on; `children_of: []`; `category: Disease group` | `children_of` adds the children of another disease |
-| `categories` | precursor / spectrum, risk factor, comorbidity, intermediate trait | categories of related conditions specific to the disease |
+| `categories` | precursor / spectrum, risk factor, comorbidity, intermediate trait | categories of related conditions specific to the disease: a list of `name` and `description` (the readers see both); `cooccurrence: true` marks a category that is evidence of co-occurrence only, like the default comorbidity |
 | `labels`, `abbreviations` | none | short labels for long condition names in figures and narrow columns |
 | `checks` | none | expected values that `verify.sh` checks (for example `published_regions: 9`) |
 
@@ -410,12 +410,17 @@ Set any parameter with `--Name value`, in a project file, or in `conf/local.conf
 | `RegionMinMaf` | `0.01` | below this frequency, a lead needs P < `RareVariantP` |
 | `RareVariantP` | `5e-9` | P of a rare lead |
 | `RegionWindowKb` | `500` | credible sets this close form one region |
+| `MinSharedRegions` | `2` | regions a condition related only by shared GWAS signals shares with the disease, at least |
+| `OverlapPipMin` | `0.1` | lead-variant overlap: PIP of a published lead variant in a credible set of a condition |
+| `DuplicateStudyShare` | `0.8` | traits related only by shared signals whose GWAS studies overlap this much (Jaccard) are one trait |
 | `L2gMin` | `0.5` | top locus-to-gene score for a gene–condition link and a region name |
 | `MendelianMin` | `0.5` | datasource score of curated gene evidence |
-| `ClppMin` | `0.01` | colocalization (eCAVIAR CLPP), and the PIP of a lead-variant overlap |
+| `ClppMin` | `0.01` | colocalization (eCAVIAR CLPP) |
 | `H4Min` | `0.8` | colocalization (coloc H4) |
 | `EasMin` | `0.5` | East Asian share of a GWAS sample to flag it |
 | `MaxGwasStudies` | `100` | a related condition with more GWAS keeps its shared signals only |
+| `MaxDescendants` | `100` | a related condition with more descendants in the disease ontology is a broad class: its own genetics are not fetched, and related only by shared signals it is left out |
+| `ComorbidityMinPublications` | `2` | a condition related only as a comorbidity (a `cooccurrence` category) by fewer publications keeps its shared signals only: its own genetics are not fetched |
 | `MaxOntologyChildren` | `30` | a parent with more children is too broad to give neighbors |
 | `ThemeTargets` | `12` | targets whose sentences feed a mechanism summary |
 | `MinThemeTargets` | `3` | smallest theme that gets a summary |

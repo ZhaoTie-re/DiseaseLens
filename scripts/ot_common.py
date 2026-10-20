@@ -959,7 +959,8 @@ def shared_relations(co, ov, alias, short):
             x['regions'].add(r.disease_gene)
             x['studies'].add(r.study_id)
             x['best'] = max(x['best'], score(r))
-            x['name'] = r.condition
+            if not x['name'] or r.node_id == alias.get(r.node_id, r.node_id):     # a merged trait: its own name
+                x['name'] = r.condition
         return agg
     cagg = collect(co, lambda r: max(val(r.clpp), val(r.h4)))
     oagg = collect(ov, lambda r: val(r.pip))

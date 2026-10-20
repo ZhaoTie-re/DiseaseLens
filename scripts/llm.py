@@ -532,6 +532,55 @@ def reconcile(readers, adjudicator, items, system, differences, ground):
     return finals, review
 
 
+def decide(readers, adjudicator, system, batches, ground, show, note=''):
+    """Decisions on a list of items, made the way every reading is: each reader decides every item without seeing the
+    other's answer, the decisions are compared item by item, and the adjudicator decides the items where they differ.
+    batches: [(text, ids)], the text the readers are given for the items `ids` (a long list is read in parts);
+    ground(answer, ids, who) -> {id: decision}, the valid decisions of an answer, each a tuple whose last element is
+    a reason (not compared); show(decision) -> its text, for the adjudicator and the review table; note: what the
+    adjudicator is asked beyond the readers' instructions. An item no reader decided is left out of the result (the
+    caller keeps it as it was). Returns ({id: decision}, {id: agreement}, review rows [{item, <reader>..., final,
+    decision}], answered: whether any reader answered)."""
+    names = [r.name for r in readers]
+    answers = read_all(readers, [(system, text) for text, _ids in batches])
+    if all(a is None for rd in answers for a in rd):
+        return {}, {}, [], False
+    final, agree, review = {}, {}, []
+    for b, (text, ids) in enumerate(batches):
+        reads = [ground(answers[k][b], ids, names[k]) for k in range(len(readers))]
+        disputed = []
+        for i in ids:
+            ds = [rd.get(i) for rd in reads]
+            if all(d is None for d in ds):
+                continue
+            if len(ds) == 1 or (None not in ds and ds[0][:-1] == ds[1][:-1]):
+                final[i], agree[i] = ds[0], 'both' if len(ds) > 1 else 'one reader'
+            else:
+                disputed.append(i)
+        if not disputed:
+            continue
+        # the readings in an order fixed by the part's text, so that neither reader is always shown first
+        swapped = bool(int(hashlib.sha256(text.encode()).hexdigest(), 16) % 2)
+        lines = []
+        for i in disputed:
+            a, c = (reads[k].get(i) for k in ((1, 0) if swapped else (0, 1)))
+            lines.append(f'[{i}] Reading 1: {show(a) if a else "no decision"}; Reading 2: {show(c) if c else "no decision"}')
+        ans = adjudicator.ask(system, text + '\n\n---\n\nTwo readers, who did not see each other\'s answer, decided '
+                              'differently on these items:\n' + '\n'.join(lines) + '\n\nDecide each of these items from '
+                              'the text above, in the format above, one decision per item listed here; each reason says '
+                              'in at most 25 words what you decided where the readings differed, and why.'
+                              + (f' {note}' if note else '')) if adjudicator else None
+        ad = ground(ans, disputed, 'adjudicator')
+        for i in disputed:
+            if i in ad:
+                final[i] = ad[i]
+            agree[i] = 'adjudicated'
+            review.append({'item': i, **{n: show(rd[i]) if rd.get(i) else 'no decision' for n, rd in zip(names, reads)},
+                           'final': show(ad[i]) if i in ad else 'no decision: left as it was',
+                           'decision': ad[i][-1] if i in ad else ''})
+    return final, agree, review, True
+
+
 def reader_names(text, swapped, names):
     """The adjudicator's decision with its 'Reading 1' and 'Reading 2' (the order it was shown the readings in, which
     alternates by record) given as the readers' names, so that the decision reads against the review table."""

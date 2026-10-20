@@ -1640,7 +1640,8 @@ function modelSections() {
       const rows = disputed.filter(r => pass === 'all' || r[1] === pass)
         .map(([pm, ps, item, a, b, fin, dec]) => ({pm, ps, item, a, b, fin, dec}));
       box2.replaceChildren(table([
-        {label: 'Source', get: r => r.pm, cell: r => pmid(r.pm)}, {label: 'Pass', get: r => r.ps},
+        {label: 'Source', get: r => r.pm || 'Condition list', cell: r => r.pm ? pmid(r.pm) : 'Condition list'},
+        {label: 'Pass', get: r => r.ps},
         {label: 'Item', get: r => r.item}, {label: 'Reader A', get: r => r.a}, {label: 'Reader B', get: r => r.b},
         {label: 'Final', get: r => r.fin}, {label: 'Decision', get: r => r.dec, cell: r => h('span', {class: 'quote'}, r.dec)}],
         rows, {tools: h('span', {}, ['all'].concat(passes).map(x => h('button', {class: 'btn' + (pass === x ?

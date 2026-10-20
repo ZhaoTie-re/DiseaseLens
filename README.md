@@ -23,10 +23,10 @@ own computer, offline (see below).
 
 | Disease | Open Targets ID | Snapshot | Genes on the evidence ladder | Genetic studies | Related conditions | GWAS regions | Nodes / edges |
 |---|---|---|---:|---:|---:|---:|---:|
-| **CTEPH**, chronic thromboembolic pulmonary hypertension | [EFO_0022954](https://platform.opentargets.org/disease/EFO_0022954) | 2026-10-19 | 66 | 48 | 234 | 9 | 5,594 / 9,711 |
-| **HPAH**, heritable pulmonary arterial hypertension | [MONDO_0017148](https://platform.opentargets.org/disease/MONDO_0017148) | 2026-10-19 | 45 | 113 | 17 | 0 | 1,537 / 3,671 |
-| **IPAH**, idiopathic pulmonary arterial hypertension | [MONDO_0001999](https://platform.opentargets.org/disease/MONDO_0001999) | 2026-10-20 | 77 | 141 | 56 | 0 | 3,691 / 7,669 |
-| **PVOD/PCH**, pulmonary veno-occlusive disease and/or pulmonary capillary haemangiomatosis | [MONDO_0018554](https://platform.opentargets.org/disease/MONDO_0018554) | 2026-10-20 | 16 | 51 | 24 | 0 | 1,386 / 2,008 |
+| **CTEPH**, chronic thromboembolic pulmonary hypertension | [EFO_0022954](https://platform.opentargets.org/disease/EFO_0022954) | 2026-10-19 | 66 | 48 | 89 | 9 | 5,425 / 9,092 |
+| **HPAH**, heritable pulmonary arterial hypertension | [MONDO_0017148](https://platform.opentargets.org/disease/MONDO_0017148) | 2026-10-19 | 45 | 113 | 15 | 0 | 1,535 / 3,665 |
+| **IPAH**, idiopathic pulmonary arterial hypertension | [MONDO_0001999](https://platform.opentargets.org/disease/MONDO_0001999) | 2026-10-20 | 77 | 141 | 29 | 0 | 2,690 / 6,115 |
+| **PVOD/PCH**, pulmonary veno-occlusive disease and/or pulmonary capillary haemangiomatosis | [MONDO_0018554](https://platform.opentargets.org/disease/MONDO_0018554) | 2026-10-20 | 16 | 51 | 19 | 0 | 401 / 930 |
 
 All four use Open Targets release 26.09. A disease with no GWAS in Open Targets has no GWAS region; its genes come
 from curated gene–disease evidence and the genetic literature.
@@ -47,7 +47,7 @@ flowchart LR
 
 ### 1. Download
 
-The graphs are published as one file, `diseaselens-results.zip` (57 MB; 215 MB unpacked), attached to the
+The graphs are published as one file, `diseaselens-results.zip` (46 MB; 135 MB unpacked), attached to the
 [latest release](https://github.com/ZhaoTie-re/DiseaseLens/releases/latest).
 
 macOS or Linux:
@@ -233,7 +233,9 @@ flowchart LR
 - **GWAS regions** come from a published table, or from the disease's GWAS in Open Targets when the lead variant is
   credible: enough expected copies of its minor allele, a stricter P for rare variants, or replication.
 - **Related conditions** enter by clinical evidence (a curated list, or relations read from PubMed with a verbatim
-  quote), by the disease ontology, or by a GWAS signal shared with a region of the disease.
+  quote), by the disease ontology, or by GWAS signals shared with two or more regions of the disease. Relations read
+  from PubMed are then consolidated (one condition, one node) and verified row by row against explicit rules, each
+  step by two models apart and an adjudicator.
 - **Genetic studies** are screened by rule, then read by two language models that never see each other's answer; a
   third model decides where they differ. Every gene, variant, number and quote must occur in the source text, or the
   item is dropped.

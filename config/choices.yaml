@@ -186,10 +186,16 @@ groups:
   items:
   - key: categories
     item: Categories of related conditions
-    value: precursor / spectrum; risk factor; comorbidity; intermediate trait; the disease group of the ontology
-    basis_type: design
+    value: precursor / spectrum (progresses to the disease, or a stage of one process with it); risk factor (present
+      before it, raising or lowering its risk); comorbidity (more frequent with it, without evidence that it came
+      first); intermediate trait (a measurable level or trait between genotype and disease); the disease group of
+      the ontology; a shared genetic signal only
+    basis_type: user
     basis: The kinds of clinical relation a guideline or study states, and the neighbors of the disease in its
-      ontology, kept apart from relations by a shared genetic signal only.
+      ontology, kept apart from relations by a shared genetic signal only. Each evidence row gets its category from
+      the readers, checked row by row in the verification; a condition takes the most frequent category of its own
+      rows (majority vote, decided with the user, 2026-10-20), the rows of a characteristic attached to it not
+      voting.
     used_in: sheet 4; condition map
   - key: relations_source
     item: Source of the clinical relations
@@ -211,6 +217,40 @@ groups:
       2026-10-20), an animal or cell experiment, a comparison between groups of patients, or a result for a broader
       group in which the disease's patients are a minority does not relate two conditions.
     used_in: sheet 4 (evidence rows)
+  - key: consolidation
+    item: Consolidation of the conditions read from PubMed
+    value: one decision per condition of the list (keep, merge with another, attach to another as a characteristic of
+      its patients, drop), by the two readers apart and the adjudicator where they differ
+    basis_type: user
+    basis: Decided with the user (2026-10-20). Read one record at a time, one condition comes out under several names,
+      and a characteristic of a related condition (unprovoked or massive pulmonary embolism) as a condition of its
+      own. A merged condition is named by its member with an Open Targets entry and keeps every member's entry; a
+      narrower disease of its own is never merged into a broader one; every moved statement starts with the name it
+      was read under, its quote unchanged.
+    used_in: sheet 4; sheet 10
+  - key: verification
+    item: Verification of every evidence row and every condition
+    value: each row is kept with its category or dropped with a reason (not about the disease, no relation stated,
+      a comparison with another disease only, a consequence or finding of the disease, another form of its parent
+      class); each condition is kept, dropped, merged or attached; two readers apart, the adjudicator where they
+      differ
+    basis_type: user
+    basis: Decided with the user (2026-10-20), after an audit of every related condition of the first four graphs
+      found about half with a problem that the source-text check cannot see (a quote that is background or a study
+      aim, a result about another disease or outcome, a comparison with another disease's patients, a condition that
+      defines another form of the parent class under an older umbrella name). The readers are given the ontology
+      siblings of the disease. Every decision, with both readings and the adjudicator's reason, is listed.
+    used_in: sheet 4; sheet 10
+  - key: condition_mapping
+    item: Mapping a condition to Open Targets
+    value: its name, its usual name, and for a level written with its direction or measure ('Elevated factor VIII')
+      the trait as Open Targets names measured traits; never an ancestor of the disease; a descendant is one of its
+      own subtypes and left out
+    basis_type: design
+    basis: A name must equal an entry's name or exact synonym. An ancestor of the disease (hypertensive disorder for a
+      form of pulmonary hypertension) names a class the disease belongs to, not a related condition. A condition
+      without an entry has one key in every disease, the words of its name without those of use or exposure.
+    used_in: sheet 4
   - key: contrary
     item: Contrary findings
     value: a study that found no association is kept beside a relation, labeled by its direction, but never makes one;
@@ -257,13 +297,14 @@ groups:
     used_in: sheets 4, 5, A3
   - key: overlap
     item: Lead-variant overlap (regions without a {short} credible set)
-    param: ClppMin
+    param: OverlapPipMin
     format: lead-variant PIP ≥ {v}
-    basis_type: design
+    basis_type: user
     basis: Without a {short} credible set, colocalization cannot be computed. If the {short} lead variant were the
       causal variant, the CLPP of the pair would equal that variant's posterior inclusion probability (PIP) in the
-      other credible set, so the colocalization cut-off is applied to that PIP. It is an upper bound, hence a
-      weaker kind of evidence, shown apart.
+      other credible set. It is an upper bound, hence a weaker kind of evidence, shown apart, and a low PIP in a
+      polygenic trait's credible set is chance overlap; the PIP must be at least this (decided with the user,
+      2026-10-20, after the audit).
     refs: [ecaviar]
     used_in: sheets 4, 5, A3; regions figure
   - key: loci_grading
@@ -274,6 +315,44 @@ groups:
       shared regions point to a shared mechanism; one region alone is weak evidence.
     check: single_region
     used_in: sheets 4, 5; condition map
+  - key: min_shared_regions
+    item: Traits related only by a shared GWAS signal
+    param: MinSharedRegions
+    format: at least {v} {short} regions shared
+    basis_type: user
+    basis: Decided with the user (2026-10-20). One shared region alone, often a pleiotropic one (ABO is associated
+      with many unrelated traits), does not relate a trait to {short} by itself; shared signals in several regions
+      point to a shared mechanism. A trait related only by shared signals enters when it shares at least this many
+      of the {short} regions; the signals of a condition related by clinical or ontology evidence count however many
+      regions they share. A disease with fewer regions than this has no trait related by a shared signal alone. The
+      traits left out are counted and named (tidy.json). The colocalization cut-offs stay those of the method's
+      authors.
+    refs: [ecaviar, tsepilov]
+    used_in: sheets 4, 5; condition map
+  - key: joint_traits
+    item: GWAS studies of several traits jointly
+    value: left out of the shared signals (the trait patterns are part of the shared curation rules)
+    basis_type: user
+    basis: Decided with the user (2026-10-20). A multi-trait or pleiotropy analysis ("Venous thromboembolism or
+      fibrinogen levels (pleiotropy)") can be driven by one of its traits alone, so its signal is no trait's own.
+    used_in: sheets 4, 5
+  - key: study_once
+    item: A GWAS study counts once
+    value: a study that Open Targets maps to a condition related by clinical or ontology evidence and to other
+      conditions supports that condition only
+    basis_type: user
+    basis: Decided with the user (2026-10-20). One study is mapped to several entries (a pulmonary embolism study also
+      to pulmonary infarction, or a medication question to drug use), so the same signal would relate a condition
+      again under another name.
+    used_in: sheets 4, 5
+  - key: duplicate_traits
+    item: Traits related only by shared signals that are one trait
+    param: DuplicateStudyShare
+    format: GWAS studies shared ≥ {v} (Jaccard)
+    basis_type: user
+    basis: Decided with the user (2026-10-20). Two Open Targets entries whose supporting studies nearly coincide
+      (phlebitis and thrombophlebitis) carry one signal; they are one trait, named by the one with more studies.
+    used_in: sheets 4, 5
 
 - name: Genetics of the related conditions
   items:
@@ -282,8 +361,32 @@ groups:
     value: all GWAS and curated evidence; shared signals only; none
     basis_type: design
     basis: Conditions without an Open Targets record get none. Traits related only by a shared signal keep only
-      their shared signals, and so does a condition with more GWAS studies than the limit, so that general traits
-      do not flood the gene map with unrelated genes.
+      their shared signals, and so do a condition with more GWAS studies than the limit, a broad class and a
+      comorbidity from too few publications, so that general traits do not flood the gene map with unrelated genes.
+    used_in: sheets 4, 7
+  - key: broad_class
+    item: Broad classes among the related conditions
+    param: MaxDescendants
+    format: more than {v} descendants in the disease ontology
+    basis_type: user
+    basis: Decided with the user (2026-10-20). An Open Targets entry with many descendants (heart disorder, protein
+      measurement) is a class of conditions, and its own GWAS and curated genes are those of its many subtypes.
+      Related by clinical or ontology evidence, a broad class keeps its relation and its shared signals, but its own
+      genetics are not fetched; related only by shared signals, it leaves the graph, since each subtype that shares
+      a signal is listed on its own. The limit is about the 95th percentile of the related conditions of the first
+      four graphs, whose median is one descendant.
+    used_in: sheets 4, 7; gene map
+  - key: comorbidity_genetics
+    item: Genetics of a comorbidity
+    param: ComorbidityMinPublications
+    format: fetched in full from {v} publications
+    basis_type: user
+    basis: Decided with the user (2026-10-20). A comorbidity is seen with {short} without evidence that it came first,
+      so its own GWAS and curated genes say little about the causes of {short} until the relation is established. A
+      condition related only as a comorbidity (the categories the profile marks as co-occurrence), by fewer
+      publications than this, keeps its relation and its shared signals, but its own genetics are not fetched; a
+      common disease reported once with {short}, such as a cancer, would otherwise bring its many GWAS genes into the
+      gene map. A condition that is also an ontology neighbor keeps its full genetics.
     used_in: sheets 4, 7
   - key: max_gwas
     item: GWAS studies of a condition fetched in full

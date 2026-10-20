@@ -272,7 +272,8 @@ process RELATIONS {
 ${llm}
 JSON
     ${params.python} ${script} --records ${records} --profile ${profile} --llm llm.json --offline ${offline} \\
-        --batch ${params.LlmBatch} --limit ${params.LlmLimit} --api '${params.ot_api}' --out-dir 01.relations
+        --batch ${params.LlmBatch} --limit ${params.LlmLimit} --api '${params.ot_api}' \\
+        --max-children ${params.MaxOntologyChildren} --out-dir 01.relations
     cp 01.relations/relations_pubmed.json.gz seed_pubmed.json.gz
     """
 }
@@ -302,6 +303,9 @@ process RESOLVE {
     ${params.python} ${script} --profile ${profile} ${seedArg} --seed-pubmed ${seed_pubmed} \\
         --core-gwas ${raw}/gwas.json.gz \$PUB --api '${params.ot_api}' --clpp-min ${params.ClppMin} \\
         --h4-min ${params.H4Min} --l2g-min ${params.L2gMin} --max-gwas ${params.MaxGwasStudies} \\
+        --max-descendants ${params.MaxDescendants} --overlap-pip-min ${params.OverlapPipMin} \\
+        --duplicate-study-share ${params.DuplicateStudyShare} \\
+        --comorbidity-min-pubs ${params.ComorbidityMinPublications} \\
         --max-children ${params.MaxOntologyChildren} --region-window-kb ${params.RegionWindowKb} \\
         --genome-wide-p ${params.GenomeWideP} --region-min-maf ${params.RegionMinMaf} \\
         --region-min-mac ${params.RegionMinMac} --rare-variant-p ${params.RareVariantP} --out-dir 01.conditions
@@ -485,7 +489,8 @@ process TIDY_GRAPH {
         --diseases \$(ls ${diseases}/disease.*.json.gz 2>/dev/null || true) --extract ${literature} --curated ${curated} \\
         --eas-min ${params.EasMin} --l2g-min ${params.L2gMin} --region-window-kb ${params.RegionWindowKb} \\
         --genome-wide-p ${params.GenomeWideP} --region-min-maf ${params.RegionMinMaf} \\
-        --region-min-mac ${params.RegionMinMac} --rare-variant-p ${params.RareVariantP} --out-dir 04.tables
+        --region-min-mac ${params.RegionMinMac} --rare-variant-p ${params.RareVariantP} \\
+        --min-shared-regions ${params.MinSharedRegions} --out-dir 04.tables
     """
 }
 
@@ -846,7 +851,10 @@ workflow {
                      MinThemeTargets: params.MinThemeTargets, MaxGwasStudies: params.MaxGwasStudies,
                      MaxOntologyChildren: params.MaxOntologyChildren, RegionWindowKb: params.RegionWindowKb,
                      GenomeWideP: params.GenomeWideP, RegionMinMaf: params.RegionMinMaf,
-                     RegionMinMac: params.RegionMinMac, RareVariantP: params.RareVariantP, LlmOffline: offline]
+                     RegionMinMac: params.RegionMinMac, RareVariantP: params.RareVariantP,
+                     MinSharedRegions: params.MinSharedRegions, MaxDescendants: params.MaxDescendants,
+                     OverlapPipMin: params.OverlapPipMin, DuplicateStudyShare: params.DuplicateStudyShare,
+                     ComorbidityMinPublications: params.ComorbidityMinPublications, LlmOffline: offline]
     KNOWLEDGE(keyed(prof).join(tables).join(curated).join(graph).join(summaries).join(changes).join(seedPubmed)
                   .map { k, p, t, cu, g, su, sj, ch, cj, sp -> tuple(spec[k], p, t, cu, g, su, sj, ch, cj, sp) },
               runParams, script_file('build_knowledge.py'), lib)

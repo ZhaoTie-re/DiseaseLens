@@ -283,8 +283,8 @@ A condition enters the graph through at least one of four kinds of evidence. Eve
 |---|---|---|---|
 | **Clinical** | A curated list, or PubMed abstracts read by two models | A guideline, review, meta-analysis, or cohort or case-control study states an association, quoted verbatim | Number of clinical items; a condition supported by one publication is marked |
 | **Ontology** | Open Targets disease ontology (EFO / MONDO) | The disease's parents, their other children, the disease's children, and the children of any disease the profile names | — |
-| **Colocalization** | Open Targets (eCAVIAR CLPP, coloc H4) | A credible set of the condition with CLPP ≥ 0.01 or H4 ≥ 0.8 with a credible set of a region of the disease | Number of regions shared; two or more is stronger |
-| **Lead-variant overlap** | Computed here | At a published region without a credible set of the disease: a credible set of the condition contains its lead variant with PIP ≥ 0.01 | Weaker: one side is not fine-mapped |
+| **Colocalization** | Open Targets (eCAVIAR CLPP, coloc H4) | A credible set of the condition with CLPP ≥ 0.01 or H4 ≥ 0.8 with a credible set of a region of the disease | Number of regions shared |
+| **Lead-variant overlap** | Computed here | At a published region without a credible set of the disease: a credible set of the condition contains its lead variant with PIP ≥ 0.1 | Weaker: one side is not fine-mapped |
 
 ### Clinical relations read from PubMed
 
@@ -301,10 +301,12 @@ flowchart TD
     C -->|yes| K["Relation kept"]
     C -->|no| J["Adjudicator"] --> K
     K --> M["Condition mapped to Open Targets by name or exact synonym"]
+    M --> X["Consolidation of the list: keep · merge · feature · drop<br/>two readers, adjudicator where they differ"]
+    X --> V["Verification of every evidence row and condition<br/>against the rules; two readers, adjudicator"]
     classDef model fill:#e3eef8,stroke:#1f4e79,color:#1f2328
     classDef rule fill:#fdf2e6,stroke:#a8792e,color:#1f2328
     classDef ok fill:#e6f2ea,stroke:#4f8a68,color:#1f2328
-    class A,B,J model
+    class A,B,J,X,V model
     class G,C,M rule
     class K ok
 ```
@@ -322,13 +324,60 @@ flowchart TD
   molecular or cellular process; a treatment; a gene; a demographic attribute (sex, age, race or ethnicity); the
   disease or one of its subtypes; a comparison between groups of patients.
 - **Grounding.** The quote must occur in the abstract and must name the condition: by its full name, its name
-  without parentheses, an abbreviation given in parentheses ("MMC therapy" for mitomycin-C (MMC) therapy), or every
-  word of its name but those of use or exposure ("exposure to fenfluramine" for fenfluramine exposure).
+  without parentheses, an abbreviation given in parentheses ("MMC therapy" for mitomycin-C (MMC) therapy), every
+  word of its name but those of use or exposure ("exposure to fenfluramine" for fenfluramine exposure), or an
+  abbreviation for part of its name. An abbreviation (a word with two capitals or more) names the words the record
+  defines it as ("pulmonary embolism (PE)"); when the record defines none, it names two or more words of the
+  condition's name that spell it, each word giving its first letter (Schwartz and Hearst, 2003, made stricter), and
+  that are written out elsewhere in the record. "FVIII" in a record titled on clotting factor VIII names elevated
+  clotting factor VIII; "CT" never spells clotting factor. The rest of the name must be in the record too: "FVIII"
+  does not name factor VIII deficiency in a record on high factor VIII.
 - **Mapping.** A condition maps to the Open Targets disease whose name or exact synonym matches (case, spaces,
   hyphens and spelling aside); names mapped to one entry are one condition. Names without an entry are merged when
   they differ only by words of use or exposure, or by an alias in parentheses; an abbreviation never merges two
   conditions (PE is pulmonary embolism and pleural effusion). The disease itself and its `evidence_also` entries are
   never related conditions.
+- **Consolidation.** The readers read one record at a time, so one condition can come out under several names, and a
+  characteristic of a related condition can come out as a condition of its own. Once the conditions are mapped, the
+  two readers each read the whole list (every condition with its name, Open Targets entry, category and statements)
+  and decide, for each, one action; the adjudicator decides where they differ:
+
+  | Action | When | Example |
+  |---|---|---|
+  | keep | a condition of its own | pulmonary embolism |
+  | merge | the same condition under another name, or the marker that defines it | antiphospholipid antibody positivity into antiphospholipid syndrome |
+  | feature | a characteristic of another listed condition among its patients: severity, type, location, provocation, recurrence, a finding at its diagnosis, its treatment | unprovoked or massive pulmonary embolism into pulmonary embolism |
+  | drop | not a condition (a placeholder such as "comorbid diseases"), or a consequence of the disease itself | anxiety among the disease's patients |
+
+  The rules: a merge or feature must name another condition of the list, and one whose target is dropped, or whose
+  decisions loop, is not applied; a merged condition is named by its member with an Open Targets entry and keeps every
+  member's entry; every moved statement starts with the name it was read under, and its quote is unchanged; a
+  narrower disease of its own is never merged into a broader one. Every decision, with both readings and the
+  adjudicator's reason, is in `01.relations/relations_consolidation.tsv`; disputed ones join the review table.
+- **Verification.** Consolidation decides on names; verification decides on evidence. The two readers each read
+  every condition with all its evidence rows (PMID, direction, design, population, statement and quote) and the
+  disease's ontology siblings, and judge every row and every condition by explicit rules; the adjudicator decides
+  where they differ. A row is kept with its category, or dropped with one of five reasons:
+
+  | Reason | The quote … |
+  |---|---|
+  | not about the disease | reports a result about another disease or outcome (a related but different disease, a suspected or composite outcome), or for a broader group in which the disease's patients are not most |
+  | no relation stated | is background, a study aim or rationale, a design statement, or says only that two conditions share features or must be told apart |
+  | comparison with another disease | compares the disease's patients with another disease's patients only |
+  | consequence or finding | names a consequence or complication of the disease or its treatment, or a finding or measurement among its patients (heart failure, hypoxemia, anxiety or depression reported among its patients) |
+  | another form | names a condition that by definition places a patient in another form of the disease's parent class (an exposure that defines a drug-induced form, a disease that defines an associated form, a family history that defines a heritable form), even when an older record uses a former umbrella name of the disease, such as primary pulmonary hypertension for IPAH |
+
+  Each condition is then kept, dropped, merged or attached, as in the consolidation (a comparison between groups of a
+  related condition's patients, such as the disease after one kind of pulmonary embolism against another, is a
+  characteristic of that condition); a condition left without a row leaves. The category of a condition is the most frequent category of its own rows. This step was added after an
+  audit of every related condition of the four example graphs found about half with a problem that the
+  source-text check alone cannot see. Every decision, with both readings and the adjudicator's reason, is in
+  `01.relations/relations_verification.tsv`; disputed ones join the review table.
+- **Mapping rules.** A name is also looked up in the forms Open Targets gives measured traits ("Elevated factor VIII"
+  as factor VIII measurement). A name that maps to an ancestor of the disease keeps no entry (hypertensive disorder
+  is a class a form of pulmonary hypertension belongs to, not a related condition), and one that maps to a
+  descendant is one of the disease's own subtypes and left out. A condition without an entry has one key in every
+  disease (the words of its name without those of use or exposure).
 - **No association is not an association.** A condition enters by clinical evidence only through a relation that
   found an association. A study that found none is kept, labeled, beside the relations of a condition related
   otherwise, but does not count.
@@ -354,6 +403,30 @@ do.
 - **Colocalization** is computed by Open Targets and selected here: the pipeline runs no colocalization itself.
 - **Lead-variant overlap.** If the lead were the causal variant, the CLPP of the pair would equal its PIP; without a
   credible set of the disease, that side is not fine-mapped, hence weaker.
+- **What a GWAS study can tell.** A study that tests several traits jointly (a multi-trait or pleiotropy analysis,
+  such as "Venous thromboembolism or fibrinogen levels (pleiotropy)") gives no trait's own signal and is left out. A
+  study counts once: one that Open Targets maps to a condition related by clinical or ontology evidence and to other
+  conditions supports that condition only (a pulmonary embolism study is not counted again for pulmonary
+  infarction). Traits related only by shared signals whose studies nearly coincide (80% or more, `DuplicateStudyShare`)
+  are one trait. A lead-variant overlap needs a PIP of at least 0.1 (`OverlapPipMin`).
+- **Shared signals alone need two regions.** A condition related only by shared GWAS signals (colocalization or
+  lead-variant overlap) enters when it shares at least two of the disease's regions (`MinSharedRegions`). One region
+  alone, often a pleiotropic one (ABO is associated with many unrelated traits), does not relate a trait by itself;
+  signals in several regions point to a shared mechanism. The signals of a condition related by clinical or ontology
+  evidence count however many regions they share. A disease with fewer regions than the minimum has no trait related
+  by a shared signal alone. The traits left out are counted and named (`04.tables/tidy.json`).
+- **Broad classes.** An Open Targets entry with more than 100 descendants in the disease ontology
+  (`MaxDescendants`; heart disorder, protein measurement) is a class of conditions, whose own GWAS and curated genes
+  are those of its many subtypes. Related only by shared signals, it leaves the graph: each subtype that shares a
+  signal is listed on its own. Related by clinical or ontology evidence (cancer as a risk factor), it keeps its
+  relation and its shared signals, but its own genetics are not fetched (section 7). The limit is about the 95th
+  percentile of the related conditions of the four example graphs, whose median is one descendant.
+- **Comorbidities from one publication.** A comorbidity is seen with the disease without evidence that it came
+  first, so its own GWAS and curated genes say little about the disease's causes until the relation is established.
+  A condition related only as a comorbidity (a category the profile marks `cooccurrence`), by fewer than two
+  publications (`ComorbidityMinPublications`), keeps its relation and its shared signals, but its own genetics are not
+  fetched (section 7). Without the rule a common disease reported once with the disease, such as breast cancer,
+  brings its many GWAS genes into the gene map. An ontology neighbor keeps its full genetics.
 - **GWAS signal counts.** A signal is one credible set of one GWAS of the condition that colocalizes with, or
   contains the lead variant of, a region of the disease. Counts are of distinct GWAS studies; studies of one trait
   from different consortia can share participants, so a count measures consistency across studies, not
@@ -380,7 +453,7 @@ The depth of the read depends on how the condition is related:
 | Depth | When | What is read |
 |---|---|---|
 | `full` | every other condition with an Open Targets entry | GWAS and curated gene evidence |
-| `coloc_only` | a trait related only by a shared signal, or a condition with more than 100 GWAS studies | the shared signals only |
+| `coloc_only` | a trait related only by a shared signal, a condition with more than 100 GWAS studies, a broad class (more than 100 descendants in the disease ontology), or a comorbidity from fewer than two publications | the shared signals only |
 | `none` | no Open Targets entry | nothing; the relation stands on its clinical evidence |
 
 A condition whose genetics are not fetched shows no counts (blank, not zero), with the reason.
@@ -638,6 +711,8 @@ every data check holds.
 - Pulit SL, de With SAJ, de Bakker PIW. Resetting the bar: statistical significance in whole-genome sequencing-based
   association studies of global populations. *Genet Epidemiol* 2017;41(2):145–151. doi:10.1002/gepi.22032.
 - Rosonovski S, et al. Europe PMC in 2023. *Nucleic Acids Res* 2024;52(D1):D1668–D1676. PMID 37994696.
+- Schwartz AS, Hearst MA. A simple algorithm for identifying abbreviation definitions in biomedical text. *Pac Symp
+  Biocomput* 2003:451–462. PMID 12603049.
 
 The choices registry of each snapshot carries the full reference list, including the documentation of each data
 source.

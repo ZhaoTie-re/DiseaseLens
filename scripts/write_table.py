@@ -1874,7 +1874,9 @@ def spec_curation(D):
             ans = [f'{rd}: {x[rd]}' for rd in readers if x.get(rd)]
             what = [('b', x['item'][:1].upper() + x['item'][1:])] + ([f' ({x["stage"]})'] if x.get('stage') else []) \
                 + (['\n' + '; '.join(ans)] if ans else [])
-            rows.append(R(2, 'item', [cite_of.get(x['pmid'], pub_label(x['pmid'])), what, x['decision'] or None,
+            # an item without a publication was read on the list of conditions (their consolidation)
+            src = cite_of.get(x['pmid'], pub_label(x['pmid'])) if x['pmid'] else 'Condition list'
+            rows.append(R(2, 'item', [src, what, x['decision'] or None,
                                       f'final: {x["final"]}' if x['final'] else None, pub_label(x['pmid'])],
                           links={4: pub_url(x['pmid'])} if pub_url(x['pmid']) else None, hide=True))
     brief = [[f'Every publication the graph uses was looked up in PubMed on {cur["checked_at"][:10]}. Retracted '

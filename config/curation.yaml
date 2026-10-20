@@ -217,3 +217,8 @@ result_check:
              '\bdid not\b', '\bwas not\b', '\bwere not\b', '\bneither\b', '\bnot associated']
   positive: ['significant', 'associated with', 'increased risk', 'higher (frequency|risk)', 'more frequent',
              'odds ratio', '\bOR\b', '\bp\s*[<=]\s*0?\.0[0-4]']
+
+# GWAS studies that test several traits jointly (a multi-trait or pleiotropy analysis, e.g. "Venous thromboembolism or
+# fibrinogen levels (pleiotropy)"): their signals are not one trait's own, so they relate no condition by a shared
+# signal (resolve.py). Case-insensitive regular expressions on the study's trait.
+joint_trait_patterns: ['pleiotrop', 'cross-trait', 'multi-trait', '\bMTAG\b', 'joint analysis']

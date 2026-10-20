@@ -27,8 +27,14 @@
 #           Every seed identifier is checked against Open Targets. Each condition
 #           gets a genetics mode: 'full' (its GWAS and curated / Mendelian
 #           evidence are fetched), 'coloc_only' (only the colocalising credible
-#           sets: shared-signal traits, and conditions with more than
-#           --max-gwas GWAS studies) or 'none' (no Open Targets record).
+#           sets: shared-signal traits, conditions with more than --max-gwas
+#           GWAS studies, broad classes, entries with more than
+#           --max-descendants descendants in the disease ontology, whose own
+#           genetics are those of their subtypes, and conditions related only
+#           by evidence of co-occurrence (a category the profile marks
+#           cooccurrence) from fewer than --comorbidity-min-pubs publications)
+#           or 'none' (no Open Targets record). A broad class is marked (broad_class): related only by shared
+#           signals, it leaves the graph (tidy_graph.py).
 # Inputs  : the profile, the seed and its PubMed records, the disease's GWAS with
 #           colocalisations, its published regions as looked up
 # Outputs : conditions.tsv (one row per condition), relations.tsv (one row per
@@ -40,6 +46,7 @@
 #           the curation: relations_review.tsv, relations_reading.json
 # ---------------------------------------------------------------------------
 import argparse
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -66,7 +73,8 @@ OV_COLS = ['disease_locus', 'disease_gene', 'variant_id', 'node_id', 'condition'
 
 
 COND_COLS = ['node_id', 'name', 'category', 'ot_ids', 'genetics', 'genetics_note', 'mendelian', 'genes', 'seed_key',
-             'sources', 'support']
+             'sources', 'support', 'n_descendants', 'broad_class']
+DESCENDANTS = '''query($ids: [String!]!) { diseases(efoIds: $ids) { id descendants } }'''
 REL_COLS = ['node_id', 'evidence_type', 'relation', 'detail', 'quote', 'design', 'population', 'east_asian', 'pmid',
             'citation', 'strength', 'loci', 'n_loci', 'n_studies', 'agreement']
 
@@ -105,7 +113,15 @@ def main():
     ap.add_argument('--rare-variant-p', type=float, default=5e-9, help='P of a rare lead of such a region')
     ap.add_argument('--l2g-min', type=float, default=0.5)
     ap.add_argument('--max-gwas', type=int, default=100, help='a condition with more GWAS studies is coloc_only')
+    ap.add_argument('--overlap-pip-min', type=float, default=0.1,
+                    help='PIP of a published lead variant in a credible set of a condition (lead-variant overlap)')
+    ap.add_argument('--duplicate-study-share', type=float, default=0.8,
+                    help='traits related only by shared signals whose GWAS studies overlap this much are one trait')
+    ap.add_argument('--max-descendants', type=int, default=100,
+                    help='an entry with more descendants in the disease ontology is a broad class (coloc_only)')
     ap.add_argument('--max-children', type=int, default=30, help='a parent with more children is too broad')
+    ap.add_argument('--comorbidity-min-pubs', type=int, default=2,
+                    help='a condition related only by co-occurrence needs this many publications for its genetics')
     ap.add_argument('--out-dir', default='.')
     a = ap.parse_args()
     P = load_profile(a.profile)
@@ -246,7 +262,7 @@ def main():
         if r['source'] != 'published' or r['disease_study_locus_id'] or r['study_locus_ids']:
             continue
         for x in r.get('overlaps') or []:
-            if (x.get('pip') or 0) < a.clpp_min:
+            if (x.get('pip') or 0) < a.overlap_pip_min:
                 continue
             st = x['study']
             if st['id'] in own_studies:
@@ -266,16 +282,86 @@ def main():
                            'finemapping': x.get('finemappingMethod') or '', 'pip': x.get('pip')})
     ov = pd.DataFrame(ov, columns=OV_COLS)
 
+    # ── what a GWAS study can tell: one trait's own signal, counted once ──────
+    # a study that tests several traits jointly (a multi-trait or pleiotropy analysis) gives no trait's own signal
+    joint = [re.compile(x, re.I) for x in (P.curation.get('joint_trait_patterns') or [])]
+    is_joint = lambda t: any(rx.search(str(t)) for rx in joint)  # noqa: E731
+    # boolean masks of explicit dtype: an empty table's mask would otherwise select columns, not rows
+    jc, jo = co.trait.map(is_joint).astype(bool), ov.trait.map(is_joint).astype(bool)
+    n_joint = int(jc.sum() + jo.sum())
+    co, ov = co[~jc].copy(), ov[~jo].copy()
+    # a study counts once: one that Open Targets maps to a condition related by clinical or ontology evidence and
+    # to other conditions supports that condition only (a PE study also mapped to 'pulmonary infarction')
+    related = set(conds)
+
+    def once(df):
+        if not len(df):
+            return df, 0
+        node = df.node_id.map(lambda n: alias.get(n, n))
+        by_study = node.groupby(df.study_id).agg(set)
+        keep = pd.Series([n in related or not (by_study[s] & related) for s, n in zip(df.study_id, node)],
+                         index=df.index, dtype=bool)
+        return df[keep].copy(), int((~keep).sum())
+    co, n_once_co = once(co)
+    ov, n_once_ov = once(ov)
+    # traits related only by shared signals whose studies nearly coincide (one trait under two Open Targets entries)
+    # are one trait, named by the one with the most studies
+    sets = {}
+    for df in (co, ov):
+        for s_, n_ in zip(df.study_id, df.node_id):
+            n2 = alias.get(n_, n_)
+            if n2 and n2 not in related:
+                sets.setdefault(n2, set()).add(s_)
+    order = sorted(sets, key=lambda n: (-len(sets[n]), n))
+    dup = {}
+    for k, x in enumerate(order):
+        if x in dup:
+            continue
+        for y in order[k + 1:]:
+            if y not in dup and len(sets[x] & sets[y]) / len(sets[x] | sets[y]) >= a.duplicate_study_share:
+                dup[y] = x
+    alias.update(dup)
+    log(f'shared signals: {n_joint} rows of joint-trait studies left out; {n_once_co + n_once_ov} rows of studies '
+        f'counted for a condition related otherwise; {len(dup)} traits merged as near duplicates')
+
     # ── shared-signal relations, graded by the disease's regions shared ──────
     shared_rows, regions_all, shared_names = shared_relations(co, ov, alias, short)
     for x in shared_rows:
         i = x['node_id']
         if i not in conds:
-            conds[i] = {'node_id': i, 'name': shared_names[i], 'category': SHARED_SIGNAL, 'ot_ids': i,
+            conds[i] = {'node_id': i, 'name': shared_names[i], 'category': SHARED_SIGNAL,
+                        'ot_ids': ' '.join([i] + sorted(y for y, x_ in dup.items() if x_ == i)),
                         'genetics': 'coloc_only', 'genetics_note': 'related only by a shared GWAS signal',
                         'mendelian': False, 'genes': '', 'seed_key': '', 'sources': set(), 'support': ''}
         conds[i]['sources'].add(x['evidence_type'])
         rel.append(x)
+
+    # ── broad classes: an entry with more descendants in the disease ontology than --max-descendants (heart
+    # disorder, protein measurement) holds, as its own genetics, those of its many subtypes ──
+    first = sorted({c['ot_ids'].split()[0] for c in conds.values() if c['ot_ids']})
+    n_desc = {}
+    for i in range(0, len(first), 50):
+        for d in gql(a.api, DESCENDANTS, {'ids': first[i:i + 50]})['diseases']:
+            n_desc[d['id']] = len(d.get('descendants') or [])
+    for c in conds.values():
+        c['n_descendants'] = n_desc.get(c['ot_ids'].split()[0], 0) if c['ot_ids'] else 0
+        c['broad_class'] = c['n_descendants'] > a.max_descendants
+        if c['broad_class'] and c['genetics'] == 'full':
+            c['genetics'], c['genetics_note'] = 'coloc_only', (
+                f'a broad class ({c["n_descendants"]} subtypes in the disease ontology, more than '
+                f'{a.max_descendants}): its own genetics are those of its subtypes')
+
+    # ── a condition related only by co-occurrence (a comorbidity), from too few publications, keeps its shared
+    # signals only: its own genetics say nothing of the disease's causes until the relation is established ──
+    cooccurrence = {c['name'] for c in P.categories if c.get('cooccurrence')}
+    for n, c in conds.items():
+        if c['genetics'] == 'full' and c['category'] in cooccurrence and 'ontology' not in c['sources']:
+            pubs = {r['pmid'] for r in rel if r['node_id'] == n and r['evidence_type'] == 'clinical'
+                    and relates('clinical', r['relation'])}
+            if len(pubs) < a.comorbidity_min_pubs:
+                c['genetics'], c['genetics_note'] = 'coloc_only', (
+                    f'{c["category"].lower()} from {len(pubs)} publication{"s" if len(pubs) != 1 else ""}, fewer '
+                    f'than {a.comorbidity_min_pubs}: its own genetics are not fetched')
 
     # ── depth of genetic retrieval: a condition with too many GWAS studies keeps its shared signals only ──
     for c in conds.values():

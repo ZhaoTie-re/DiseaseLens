@@ -185,6 +185,8 @@ def main():
                     help='expected copies of the minor allele of such a lead in the smaller group of its study')
     ap.add_argument('--rare-variant-p', type=float, default=5e-9, help='P of a rare lead of such a region')
     ap.add_argument('--l2g-min', type=float, default=0.5, help='top locus-to-gene score for a gene-condition link')
+    ap.add_argument('--min-shared-regions', type=int, default=2,
+                    help='regions a condition related only by shared GWAS signals shares with the disease, at least')
     ap.add_argument('--out-dir', default='.')
     a = ap.parse_args()
     P = load_profile(a.profile)
@@ -236,7 +238,28 @@ def main():
     relating = pd.Series([relates(t_, r_) for t_, r_ in zip(rel.evidence_type, rel.relation)], index=rel.index,
                          dtype=bool)
     kept = set(rel[relating].node_id)
-    unrelated = cond[~cond.node_id.isin(kept)]
+    # a condition related only by shared GWAS signals shares at least --min-shared-regions of the disease's regions:
+    # one region alone, often a pleiotropic one, does not relate a trait by itself (its signal still counts as the
+    # evidence of a condition related otherwise)
+    shared_types = {'colocalization', 'colocalisation', 'lead-variant overlap'}
+    by_node = rel[relating].groupby('node_id')
+    types_of = by_node.evidence_type.agg(set)
+    regions_of = by_node.loci.agg(lambda x: {g for v in x for g in str(v).split() if g})
+    too_few = sorted(n for n in kept if types_of[n] <= shared_types and len(regions_of[n]) < a.min_shared_regions)
+    # a broad class (resolve.py: more descendants in the disease ontology than --max-descendants) related only by
+    # shared signals leaves too: its signals are those of its subtypes, each listed on its own when it shares them
+    broad = set(cond[cond.get('broad_class', pd.Series('', index=cond.index)).astype(str).eq('True')].node_id)
+    too_broad = sorted(n for n in kept if n in broad and types_of[n] <= shared_types and n not in too_few)
+    names_tf = sorted(cond.set_index('node_id').name.reindex(too_few).fillna('')) if too_few else []
+    if too_few:
+        log(f'{len(too_few)} conditions related only by shared GWAS signals in fewer than {a.min_shared_regions} '
+            f'{P.short} regions left out')
+        kept -= set(too_few)
+    names_tb = sorted(cond.set_index('node_id').name.reindex(too_broad).fillna('')) if too_broad else []
+    if too_broad:
+        log(f'{len(too_broad)} broad classes related only by shared GWAS signals left out: {", ".join(names_tb)}')
+        kept -= set(too_broad)
+    unrelated = cond[~cond.node_id.isin(kept) & ~cond.node_id.isin(too_few) & ~cond.node_id.isin(too_broad)]
     if len(unrelated):
         log(f'not related (no evidence that relates them): {", ".join(unrelated.name)}')
     cond, rel = cond[cond.node_id.isin(kept)].copy(), rel[rel.node_id.isin(kept)].copy()
@@ -467,6 +490,11 @@ def main():
              'signals_not_regions': len(not_credible),
              'not_related': sorted(set(read_tsv(R / 'not_related.tsv', ['name']).name if (R / 'not_related.tsv').exists()
                                        else []) | set(unrelated.name)),
+             # traits related only by shared GWAS signals in fewer regions than the minimum: left out, named
+             'shared_signal_too_few_regions': {'min_regions': a.min_shared_regions, 'n': len(too_few),
+                                               'names': names_tf},
+             # broad classes (more ontology descendants than the limit) related only by shared signals: left out
+             'shared_signal_broad_classes': {'n': len(too_broad), 'names': names_tb},
              'fetched_at': meta['fetched_at'],
              'core': {'id': CORE, 'name': core_name, 'short': P.short, 'key': P.key},
              'conditions': len(cond),

@@ -16,7 +16,9 @@
 #                                      meta-analyses, cohort and case-control
 #                                      studies
 #                        ontology      parents, their other children, children
-#                        categories    four clinical categories
+#                        categories    four clinical categories; one marked
+#                                      cooccurrence (Comorbidity) is evidence of
+#                                      co-occurrence only (resolve.py)
 #                        gwas          published regions (gwas_regions.yaml),
 #                                      else the disease's Open Targets credible sets
 #                        themes        gene_themes.yaml, else Reactome (tidy_graph)
@@ -42,11 +44,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ot_common import a_, gql, load_json, log, us_english  # noqa: E402
 
 CATEGORIES = [
-    {'name': 'Precursor / spectrum', 'description': 'Conditions that precede {short} or form one disease spectrum with '
-                                                    'it.'},
-    {'name': 'Risk factor', 'description': 'Conditions and exposures that raise the risk of {short}.'},
-    {'name': 'Comorbidity', 'description': 'Conditions more frequent in {short}, or reported with it.'},
-    {'name': 'Intermediate trait', 'description': 'Measurable traits between genotype and {short}.'}]
+    {'name': 'Precursor / spectrum', 'description': 'Conditions that progress to {short}, or that form stages of one '
+                                                    'process with it (not a mere resemblance).'},
+    {'name': 'Risk factor', 'description': 'Diseases, exposures or procedures present before {short} that raise (or '
+                                           'lower) its risk.'},
+    {'name': 'Comorbidity', 'description': 'Conditions more frequent among {short} patients, or reported with it, '
+                                           'without evidence that they came first.', 'cooccurrence': True},
+    {'name': 'Intermediate trait', 'description': 'Measurable levels or traits (a blood level, a biomarker, a blood '
+                                                  'group) between genotype and {short}.'}]
 DISEASE = '''query($id: String!) { disease(efoId: $id) { id name synonyms { relation terms } } }'''
 KINDS = ('within_disease', 'other_trait', 'functional', 'background')
 

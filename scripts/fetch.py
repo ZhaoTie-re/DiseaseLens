@@ -136,21 +136,28 @@ def paged(url, query, variables, path, size, key):
     return rows, count
 
 
-def cursored(url, query, variables, path, key):
-    rows, count, cursor = [], None, None
-    while True:
-        d = gql(url, query, {**variables, 'cursor': cursor})
-        for k in path:
-            d = d[k]
-        if count is None:
-            count = d['count']
-        rows += d['rows']
-        cursor = d.get('cursor')
-        if not cursor or not d['rows'] or len(rows) >= count:
-            break
-    keys = [key(r) for r in rows]
-    assert len(rows) == count and len(set(keys)) == count, (path, len(rows), len(set(keys)), count)
-    return rows, count
+def cursored(url, query, variables, path, key, tries=3):
+    """Every row of a cursor-paged list, checked against the count the API reports. A listing that ends before its
+    count (the API dropped its cursor) is read again, up to `tries` times, waiting longer each time."""
+    for attempt in range(tries):
+        rows, count, cursor = [], None, None
+        while True:
+            d = gql(url, query, {**variables, 'cursor': cursor})
+            for k in path:
+                d = d[k]
+            if count is None:
+                count = d['count']
+            rows += d['rows']
+            cursor = d.get('cursor')
+            if not cursor or not d['rows'] or len(rows) >= count:
+                break
+        keys = [key(r) for r in rows]
+        if len(rows) == count and len(set(keys)) == count:
+            return rows, count
+        if attempt < tries - 1:
+            log(f'{"/".join(path)}: {len(rows)} of {count} rows before the cursor ended; reading again')
+            time.sleep(15 * (attempt + 1))
+    raise AssertionError((path, len(rows), len(set(keys)), count))
 
 
 def gwas(url, disease, size, coloc=False, indirect=False):
