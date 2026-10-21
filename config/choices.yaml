@@ -280,14 +280,25 @@ groups:
     used_in: sheet 4
   - key: contrary
     item: Contrary findings
-    value: a study that found no association is kept beside a relation, labeled by its direction, but never makes one;
-      a condition whose clinical evidence all found no association is not a related condition (listed apart)
+    value: a study that found no association never makes a relation and is not reported with it (it stays in the
+      condition's own record); a condition whose clinical evidence all found no association is not a related
+      condition (listed apart)
     basis_type: user
-    basis: Reporting only positive findings would overstate a relation, so studies that found no association stay
-      beside the positive ones; but a finding of no association is not an association (user, 2026-10-20). The
-      direction is judged like every decisive item, by the two readers apart and the adjudicator where they differ
-      (or given by the curated list); a relation counts only with a direction other than no association.
-    used_in: sheet 4; condition map
+    basis: A finding of no association is not an association (user, 2026-10-20), and a relation is reported by what
+      relates the condition, not by what does not (user, 2026-10-21). The direction of each row is judged like every
+      decisive item, by the two readers apart and the adjudicator where they differ (or given by the curated list).
+    used_in: sheet 4; viewer (related conditions)
+  - key: direction
+    item: Direction of a relation
+    value: increased or decreased risk when the condition's own rows state one, associated when they state neither;
+      both stated, weighed by the two readers and the adjudicator (the better supported, or inconsistent)
+    basis_type: user
+    basis: Decided with the user (2026-10-21). An increased or decreased risk is already an association, so the
+      relation shows the risk it states. A row of a characteristic attached to the condition does not count, since
+      its direction is that of the characteristic (CTEPH, the absence of pericardial effusion among pulmonary embolism
+      patients). Two directions conflict; the readers weigh the design, the population size, whether a result is about
+      the condition itself and the agreement between publications, and the adjudicator decides where they differ.
+    used_in: viewer (related conditions)
   - key: ontology
     item: Ontology neighbors
     value: parents of {short}; their other children; children of {short}

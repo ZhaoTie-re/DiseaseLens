@@ -391,8 +391,15 @@ flowchart TD
   mentions pulmonary embolism in its introduction), and the relation counts as other. The design is shown (the
   viewer's evidence matrix), never used to grade or filter.
 - **No association is not an association.** A condition enters by clinical evidence only through a relation that
-  found an association. A study that found none is kept, labeled, beside the relations of a condition related
-  otherwise, but does not count.
+  found an association. A study that found none does not count and is not reported with the relation; it stays in
+  the condition's own record.
+- **Direction.** A condition takes the direction its own rows state: increased or decreased risk over a mere
+  association (a risk is already an association). A row of a characteristic attached to the condition does not count,
+  since its direction is that of the characteristic (CTEPH: the absence of pericardial effusion among pulmonary
+  embolism patients), nor does a row that found no association. When its own rows state both risks, the two readers
+  weigh the evidence of each apart (design, population size, whether a result is about the condition itself,
+  agreement between publications) and the adjudicator decides where they differ: the better supported direction, or
+  inconsistent. Every such decision is in `01.relations/relations_direction.tsv`.
 - Every quote, curated or read, is re-checked against the abstract fetched for the snapshot; the build stops if one
   is not found.
 

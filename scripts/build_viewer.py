@@ -123,7 +123,8 @@ def condition_evidence(T, G):
     clinical evidence that relate it, the best design class among them (RELATION_DESIGNS, by its index), the
     directions, whether a study found no association, East Asian evidence of the relation, its place in the ontology,
     the regions of the disease it shares a signal with, by method ('c' colocalization, 'o' lead-variant overlap), and
-    why its own genetics were not read ('nf': none, shared, broad, cooccurrence, gwas; '' when they were)."""
+    why its own genetics were not read ('nf': none, shared, broad, cooccurrence, gwas; '' when they were), and the
+    direction of the relation ('dir', with 'dir_basis' when the models weighed conflicting directions)."""
     rel = read_tsv(T / 'relations.tsv')
     if 'design_class' not in rel:
         rel['design_class'] = ''
@@ -140,8 +141,11 @@ def condition_evidence(T, G):
                   'ea': any(o and str(x) == 'True' for o, x in zip(ok, g.east_asian)),
                   'onto': (onto[0].split(' ')[0] if onto else ''), 'onto_text': '; '.join(onto)}
     # why its own genetics were not read: no Open Targets entry, or (coloc_only) the reason resolve.py wrote
-    cond = read_tsv(T / 'conditions.tsv', ['node_id', 'genetics', 'genetics_note'])
+    cond = read_tsv(T / 'conditions.tsv', ['node_id', 'genetics', 'genetics_note', 'direction', 'direction_basis'])
     for x in cond.itertuples():
+        if x.direction:
+            out.setdefault(x.node_id, {'pubs': 0, 'design': None, 'dirs': [], 'contrary': False, 'ea': False,
+                                       'onto': '', 'onto_text': ''}).update(dir=x.direction, dir_basis=x.direction_basis)
         note = x.genetics_note
         code = ('none' if x.genetics == 'none' else '' if x.genetics != 'coloc_only' else
                 'broad' if 'broad class' in note else 'gwas' if 'GWAS studies, more than' in note else
@@ -182,7 +186,8 @@ def model_use(P, T, Q, summ):
             'relations': ({k: rr[k] for k in ('records', 'read', 'not_read', 'relations', 'conditions_read', 'split',
                                               'consolidation', 'conditions_consolidated', 'verification',
                                               'conditions', 'mapped_to_open_targets', 'one_publication',
-                                              'agreement', 'disputed_items', 'dropped_items') if k in rr}
+                                              'direction_conflicts', 'agreement', 'disputed_items', 'dropped_items')
+                              if k in rr}
                           if rr else None),
             # the traits a shared signal alone would relate, left out: too few regions shared, a broad class
             'shared_left_out': {'too_few': tidy.get('shared_signal_too_few_regions') or {},
@@ -1142,7 +1147,8 @@ const BIN = (v, q = 'q') => !v ? '' : q + (v === 1 ? 1 : v <= 3 ? 2 : v <= 9 ? 3
 const DESIGN_SHORT = ['guideline', 'meta-analysis', 'cohort / case-control', 'cross-sectional', 'case report',
                       'other'];
 const DIR_MARK = {'increased risk': ['↑', 'increased risk'], 'decreased risk': ['↓', 'decreased risk'],
-                  'associated': ['~', 'associated']};
+                  'associated': ['~', 'associated, no direction stated'],
+                  'inconsistent': ['⇅', 'inconsistent: its evidence states both directions']};
 const catColor = c => (D.category_colors || {})[c] || '#8a9199';
 function evidenceMatrix(focus, sortBy, setSort, query, own) {
   const E = D.cond_evidence || {};
@@ -1189,9 +1195,12 @@ function evidenceMatrix(focus, sortBy, setSort, query, own) {
       // clinical counts in blue, the condition's own genetics in gray: the matrix is about the relation
       const cnt = (v, what, q, more) => v ? h('td', {class: 'mx-n ' + BIN(v, q), title: `${v} ${what}` +
         (more || '')}, String(v)) : h('td', {class: 'mx-n'});
-      const dirs = Object.keys(DIR_MARK).filter(d => (e.dirs || []).includes(d)).map(d => h('span',
-        {title: DIR_MARK[d][1]}, DIR_MARK[d][0]));
-      if (e.contrary) dirs.push(h('span', {class: 'mx-x', title: 'a study found no association'}, '✕'));
+      // one direction: a stated risk over a mere association; both risks weighed by the models (marked *)
+      const dd = e.dir || ((e.dirs || []).includes('increased risk') ? ((e.dirs || []).includes('decreased risk') ?
+        'inconsistent' : 'increased risk') : (e.dirs || []).includes('decreased risk') ? 'decreased risk' :
+        (e.dirs || []).length ? 'associated' : '');
+      const dirs = dd ? [h('span', {title: DIR_MARK[dd][1] + (e.dir_basis ? ' — conflicting directions, weighed by ' +
+        'the models: ' + e.dir_basis : '')}, DIR_MARK[dd][0], e.dir_basis ? h('sup', {}, '*') : null)] : [];
       const regCells = !regions.length ? [] : perRegion ? regions.map(r => {
         const m = (e.regions || {})[r.id];
         return h('td', {class: 'mx-c', title: m ? `${r.label}: ${m === 'c' ? 'colocalization' :
@@ -1217,8 +1226,9 @@ function evidenceMatrix(focus, sortBy, setSort, query, own) {
       ['1', '2–3', '4–9', '≥ 10'][i]))),
     own ? h('span', {}, 'Its own genetics: ', ...['g1', 'g2', 'g3', 'g4'].map((q, i) => h('span',
       {class: 'mx-sw ' + q}, ['1', '2–3', '4–9', '≥ 10'][i]))) : null,
-    h('span', {}, '↑ increased risk · ↓ decreased risk · ~ associated · ', h('span', {class: 'mx-x'}, '✕'),
-      ' a study found no association'),
+    h('span', {}, '↑ increased risk · ↓ decreased risk · ~ associated, no direction stated' +
+      (conds.some(c => (E[c.id] || {}).dir === 'inconsistent') ? ' · ⇅ inconsistent' : '') +
+      (conds.some(c => (E[c.id] || {}).dir_basis) ? ' · * conflicting directions weighed by the models' : '')),
     h('span', {}, h('span', {class: 'mx-ea'}, '◆'), ' East Asian evidence'),
     regions.length ? h('span', {}, h('span', {class: 'mx-dot c'}), ' colocalization ', h('span', {class: 'mx-dot o'}),
       ' lead-variant overlap') : null,
@@ -1321,8 +1331,8 @@ function relationsParts() {
   // 4.1 the routes into the graph
   parts.routes = [plainTable(['Route', 'Decided by', 'A condition enters when', 'Its category', 'Evidence type'], [
     ['Clinical evidence', tags(cur ? 'profile' : 'model', 'pubmed', 'rule'), `A PubMed abstract states, for ${S} ` +
-      'itself, an association with the condition, quoted verbatim. A study that found no association is kept beside a ' +
-      'relation as contrary evidence, never as one.', 'The most frequent category of its evidence rows (4.4).',
+      'itself, an association with the condition, quoted verbatim; a study that found no association does not ' +
+      'relate it.', 'The most frequent category of its evidence rows (4.4).',
       code('clinical')],
     ['Disease ontology', tags('ot', 'rule'), `It is a neighbor of ${S} in the disease ontology: ${onto.join(', or ')}.`,
       `${D.ontology_category}, when it has no clinical evidence.`, code('ontology')],
@@ -1401,7 +1411,14 @@ function relationsParts() {
           'categories, the one met first). At each build every quote is checked again against its abstract, and the ' +
           'build stops if one is not found. A condition whose clinical rows all found no association is not related.',
           (R ? `${n(R.conditions)} conditions` : '') + (L.not_related.length ? `; not related: ` +
-            L.not_related.join('; ') : '')]]),
+            L.not_related.join('; ') : '')],
+        ['9', 'Direction', ['rule', 'model'], 'A condition takes the direction its own rows state: increased or ' +
+          'decreased risk over a mere association; rows of an attached characteristic do not count (their direction ' +
+          'is that of the characteristic), nor rows that found no association. When its own rows state both, the two ' +
+          'readers weigh the evidence of each apart (design, population size, whether the result is about the ' +
+          'condition itself, agreement between publications) and the adjudicator decides where they differ: the ' +
+          'better supported direction, or inconsistent.', R ? `${n(R.direction_conflicts || 0)} condition` +
+            `${R.direction_conflicts === 1 ? '' : 's'} with both directions` : '']]),
       h('p', {class: 'note'}, `The models read, adjudicate, consolidate and verify (steps 2, 4, 6, 7): readers ` +
         `${model('Reader A')} and ${model('Reader B')}, adjudicator ${model('Adjudicator')}. They never decide the ` +
         'search, the Open Targets entries, the ontology neighbors, the shared signals, the category vote or which ' +
@@ -1431,8 +1448,9 @@ function relationsParts() {
       `causes, comorbidities or associated conditions of ${S}; otherwise the quoted sentence is background from a ` +
       'synthesis of another question, and counts as other. The search asks for these designs, so most relations rest ' +
       'on cohort or case-control studies; the column sets apart those that a guideline or a meta-analysis is about.'],
-    ['Direction', '↑ increased risk, ↓ decreased risk, ~ associated, as the publications state it; ✕ when a study ' +
-      'found no association (shown on its page as contrary evidence).'],
+    ['Direction', 'One direction per condition (4.2, step 9): ↑ increased risk or ↓ decreased risk when its own ' +
+      'evidence states one, ~ associated when it states neither; when it states both, the models weigh the two ' +
+      '(marked *, the reason on hover), or ⇅ inconsistent when neither is better supported.'],
     ['EA', 'East Asian evidence of the relation (section 5).'],
     ['Relation', 'Its place in the disease ontology: parent, sibling or child.'],
     [`Shared ${S} GWAS regions`, 'A filled dot: a credible set of the condition colocalizes with the region; an open ' +
@@ -1802,7 +1820,8 @@ function buildPage(sel) {
     sub('4.2', 'clinical', 'Clinical relations from the literature', 'Two models read the abstracts apart; rules ' +
       'check every quote; the models then consolidate the list and verify every row, and the adjudicator decides ' +
       'where the readers differ.', parts.clinical,
-      rules('condition_mapping', 'joined_names', 'consolidation', 'verification', 'contrary', 'relation_design')),
+      rules('condition_mapping', 'joined_names', 'consolidation', 'verification', 'contrary', 'direction',
+        'relation_design')),
     sub('4.3', 'shared', 'Shared GWAS signals', `A related condition shares a region of ${S} when one of its GWAS ` +
       'credible sets colocalizes with the region\'s, or holds its lead variant where the region has no credible set ' +
       `of ${S}. These are computed by Open Targets and selected here by rules.`,

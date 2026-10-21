@@ -73,7 +73,7 @@ OV_COLS = ['disease_locus', 'disease_gene', 'variant_id', 'node_id', 'condition'
 
 
 COND_COLS = ['node_id', 'name', 'category', 'ot_ids', 'genetics', 'genetics_note', 'mendelian', 'genes', 'seed_key',
-             'sources', 'support', 'n_descendants', 'broad_class']
+             'sources', 'support', 'n_descendants', 'broad_class', 'direction', 'direction_basis']
 DESCENDANTS = '''query($ids: [String!]!) { diseases(efoIds: $ids) { id descendants } }'''
 REL_COLS = ['node_id', 'evidence_type', 'relation', 'detail', 'quote', 'design', 'design_class', 'population',
             'east_asian', 'pmid', 'citation', 'strength', 'loci', 'n_loci', 'n_studies', 'agreement']
@@ -152,7 +152,9 @@ def main():
                        'genetics': c.get('genetics', 'full' if ids else 'none'), 'genetics_note': '',
                        'mendelian': bool(c.get('mendelian', bool(ids))), 'genes': ' '.join(c.get('genes') or []),
                        'seed_key': c['key'], 'sources': {'clinical'},
-                       'support': c.get('support') or ('curated' if not extracted else '')}
+                       'support': c.get('support') or ('curated' if not extracted else ''),
+                       # what its evidence says of the risk of the disease (relations.py; a curated list: below)
+                       'direction': c.get('direction', ''), 'direction_basis': c.get('direction_basis', '')}
         for e in (c.get('evidence') or []) + [dict(x, east_asian=True) for x in (c.get('east_asian') or [])]:
             r = pub.get(str(e['pmid']))
             ok = r is not None and in_text(e['quote'], r['title'] + ' ' + r['abstract'])
@@ -178,6 +180,15 @@ def main():
                    for n in conds if not any(r['node_id'] == n and relates('clinical', r['relation']) for r in rel)]
     gone = {x['node_id'] for x in not_related}
     conds = {n: c for n, c in conds.items() if n not in gone}
+    # a condition of a curated list: the direction its rows that relate it state (both: inconsistent, not weighed)
+    for n, c in conds.items():
+        if not c['direction']:
+            d = {r['relation'] for r in rel if r['node_id'] == n and relates('clinical', r['relation'])}
+            up, down = 'increased risk' in d, 'decreased risk' in d
+            c['direction'] = ('inconsistent' if up and down else 'increased risk' if up else 'decreased risk' if down
+                              else 'associated')
+            if up and down:
+                c['direction_basis'] = 'both directions in the curated list; not weighed'
     rel = [r for r in rel if r['node_id'] not in gone]
 
     # ── ontology ─────────────────────────────────────────────────────────────
@@ -376,6 +387,7 @@ def main():
 
     # explicit columns: a disease can have no related condition at all
     C = pd.DataFrame(conds.values(), columns=COND_COLS)
+    C[['direction', 'direction_basis']] = C[['direction', 'direction_basis']].fillna('')   # ontology, shared signal
     C['sources'] = C.sources.map(lambda s: ' '.join(sorted(s)))
     R = pd.DataFrame(rel, columns=REL_COLS)
     R['design_class'] = R.design_class.fillna('')

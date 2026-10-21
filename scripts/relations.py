@@ -733,6 +733,90 @@ def verify(conds, readers, adj, P, logs, siblings):
     return out, review_rows, table, counts
 
 
+# ── direction: what a condition's own evidence says of the risk of the disease ───
+DIRECTION_COLUMNS = ['condition', 'increased', 'decreased', 'direction', 'agreement', 'reason', 'reader_a', 'reader_b']
+DIRECTION_CHOICES = ('increased risk', 'decreased risk', 'inconsistent')
+
+
+def own_directions(c):
+    """The directions of a condition's own rows that relate it: not a characteristic attached to it (its direction is
+    that of the characteristic: 'absence of pericardial effusion' among pulmonary embolism patients) and not a finding
+    of no association."""
+    return Counter(e.get('direction') for e in c['evidence'] + c['east_asian']
+                   if not e.get('feature') and e.get('direction') != 'no association found')
+
+
+def direction_prompt(P):
+    s = P.short
+    return f"""You weigh conflicting evidence on how a condition relates to {P.name} ({s}). The condition comes with its
+evidence rows, each with a PMID, the direction the record states, the design, the population, a statement and the
+verbatim quote of the abstract: some rows state that the condition increases the risk of {s}, others that it decreases
+it. Judge, by the text given only, which direction the evidence supports. Weigh the design (a guideline, meta-analysis
+or systematic review above a cohort or case-control study, above a cross-sectional study or case series, above a case
+report), the size of the population, whether a row's result is about the condition itself (not about a subgroup, a
+characteristic or a treatment of its patients) and the agreement between publications. Answer "increased risk" or
+"decreased risk" when that direction is clearly better supported, else "inconsistent". Answer with JSON only:
+{{"decisions": [{{"id": <id>, "direction": "increased risk" | "decreased risk" | "inconsistent",
+"reason": "<at most 30 words: the evidence that decides>"}}]}}, one entry per condition given."""
+
+
+def directions(conds, readers, adj, P, logs):
+    """The direction of each condition (DIRECTION_CHOICES, or associated): the direction its own rows state
+    (own_directions), associated when they state neither; when they state both, the readers weigh the evidence of each
+    apart and the adjudicator decides where they differ (direction_prompt, decide in llm.py). -> ({key: (direction,
+    basis)}, review rows, table rows)"""
+    out, conflict = {}, []
+    for k, c in conds.items():
+        d = own_directions(c)
+        up, down = d.get('increased risk', 0), d.get('decreased risk', 0)
+        out[k] = ('increased risk' if up and not down else 'decreased risk' if down and not up else
+                  'associated' if not up else 'inconsistent', '')
+        if up and down:
+            conflict.append(k)
+    if not conflict:
+        return out, [], []
+    ids = {i: k for i, k in enumerate(conflict, 1)}
+    batches = []
+    for i, k in ids.items():
+        c = conds[k]
+        rows = [e for e in c['evidence'] + c['east_asian']
+                if not e.get('feature') and e.get('direction') in ('increased risk', 'decreased risk')]
+        batches.append((f'[{i}] Condition: {c["name"]}\n' + '\n'.join(
+            f'- PMID {e["pmid"]} | {e["direction"]} | design: {e.get("design", "")} | population: '
+            f'{e.get("population", "")} | {e["statement"]} | quote: "{e["quote"]}"' for e in rows), [i]))
+
+    def ground(ans, want, who):
+        got = {}
+        for d in ((ans.get('decisions') if isinstance(ans, dict) else None) or []):
+            try:
+                i = int(d.get('id'))
+            except (TypeError, ValueError, AttributeError):
+                continue
+            if i in want and str(d.get('direction')) in DIRECTION_CHOICES:
+                got[i] = (str(d['direction']), str(d.get('reason') or '')[:300])
+            elif i in want:
+                logs.append({'pmid': '', 'item': f'direction of {conds[ids[i]]["name"]}', 'why': 'decision not '
+                             'allowed: left as inconsistent', 'value': json.dumps(d)[:200], 'reader': who})
+        return got
+    final, agree, review, answered = decide(readers, adj, direction_prompt(P), batches, ground, lambda d: d[0])
+    names = [r.name for r in readers]
+    reads = {r['item']: r for r in review}
+    table = []
+    for i, k in ids.items():
+        d = own_directions(conds[k])
+        dec = final.get(i)
+        out[k] = (dec[0], dec[1]) if dec else ('inconsistent', 'not weighed: no model answer')
+        table.append({'condition': conds[k]['name'], 'increased': d.get('increased risk', 0),
+                      'decreased': d.get('decreased risk', 0), 'direction': out[k][0],
+                      'agreement': agree.get(i, 'not read' if not answered else 'both'), 'reason': out[k][1],
+                      'reader_a': reads.get(i, {}).get(names[0], dec[0] if dec else ''),
+                      'reader_b': reads.get(i, {}).get(names[-1], dec[0] if dec else '') if len(names) > 1 else ''})
+    review = [{'pmid': '', 'item': f'direction: {conds[ids[r["item"]]]["name"]}',
+               **{kk: v for kk, v in r.items() if kk != 'item'}} for r in review]
+    return out, review, table
+
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--records', required=True, help='pubmed.py --mode search output of the relation search')
@@ -831,6 +915,8 @@ def main():
     n_consolidated = len(conds)
     conds, review_v, table_v, counts_v = verify(conds, readers, adj, P, logs, siblings)
     review += review_v
+    dirs, review_d, table_d = directions(conds, readers, adj, P, logs)
+    review += review_d
     seed = {'version': load_json(a.records).get('max_date', ''),
             'note': 'Extracted: read from PubMed by two independent language-model readers, adjudicated where they '
                     'disagreed; every quote is checked against its abstract at each build.',
@@ -841,6 +927,7 @@ def main():
             'key': key.lower(), 'name': c['name'], 'category': votes(c).most_common(1)[0][0],
             'ot_ids': c['ot_ids'], 'genetics': 'full' if c['ot_ids'] else 'none', 'mendelian': bool(c['ot_ids']),
             'genes': [], 'support': 'one publication' if n_pub == 1 else f'{n_pub} publications',
+            'direction': dirs[key][0], 'direction_basis': dirs[key][1],
             'evidence': c['evidence'], 'east_asian': c['east_asian']})
     (out / 'extracted_relations.yaml').write_text(yaml.safe_dump(seed, sort_keys=False, allow_unicode=True, width=118))
     used = sorted({e['pmid'] for c in seed['conditions'] for e in c['evidence'] + c['east_asian']}, key=int)
@@ -851,12 +938,14 @@ def main():
               out / 'relations_log.tsv')
     write_tsv(pd.DataFrame(table_c, columns=CONSOLIDATION_COLUMNS), out / 'relations_consolidation.tsv')
     write_tsv(pd.DataFrame(table_v, columns=VERIFICATION_COLUMNS), out / 'relations_verification.tsv')
+    write_tsv(pd.DataFrame(table_d, columns=DIRECTION_COLUMNS), out / 'relations_direction.tsv')
     ag = Counter(x['agreement'] for x in rows)
     not_read = sum(all(x is None for x in readings[r['pmid']]) for r in recs)
     unanswered = sum(1 for x in logs if x.get('item') == 'record' and x.get('value') == 'no answer')
     stats = {'records': len(recs), 'read': len(recs) - not_read, 'not_read': not_read,
              'relations': len(rows), 'conditions_read': n_read, 'split': len(split), 'consolidation': counts_c,
              'conditions_consolidated': n_consolidated, 'verification': counts_v, 'siblings': siblings,
+             'direction_conflicts': len(table_d),
              'conditions': len(seed['conditions']),
              'mapped_to_open_targets': sum(1 for c in seed['conditions'] if c['ot_ids']),
              'one_publication': sum(1 for c in seed['conditions'] if c['support'] == 'one publication'),
