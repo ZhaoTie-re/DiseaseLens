@@ -352,6 +352,8 @@ results/
 | read the knowledge base with figures | `08.knowledge/<key>_knowledge_graph.md`, `09.figures/` |
 | see what the two models disagreed on, and the decision | `03.curated/model_review.tsv`; the workbook's curation sheet; the viewer's "How it is built", section 6 |
 | see every curation rule applied | `03.curated/curation_log.tsv` |
+| see how each related condition was decided | `01.relations/relations_consolidation.tsv`, `relations_verification.tsv`, `relations_direction.tsv` (both readings and the adjudicator's reason) |
+| see what each shared-signal filter left out, region by region | `04.tables/tidy.json` (`shared_funnel`); the viewer's "How it is built", section 4.3 |
 | query from the shell or Python | `python3 scripts/kg.py --disease <key> ...` (see the [README](../README.md#query-the-graph)) |
 
 **The workbook** answers one question per sheet:

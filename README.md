@@ -47,7 +47,7 @@ flowchart LR
 
 ### 1. Download
 
-The graphs are published as one file, `diseaselens-results.zip` (46 MB; 138 MB unpacked), attached to the
+The graphs are published as one file, `diseaselens-results.zip` (46 MB; 139 MB unpacked), attached to the
 [latest release](https://github.com/ZhaoTie-re/DiseaseLens/releases/latest).
 
 macOS or Linux:
@@ -247,7 +247,9 @@ flowchart LR
 - **Related conditions** enter by clinical evidence (a curated list, or relations read from PubMed with a verbatim
   quote), by the disease ontology, or by GWAS signals shared with two or more regions of the disease. Relations read
   from PubMed are then consolidated (one condition, one node) and verified row by row against explicit rules, each
-  step by two models apart and an adjudicator.
+  step by two models apart and an adjudicator. Each condition takes one direction (an increased or decreased risk
+  over a mere association; conflicting directions weighed by the models); a study that found no association counts
+  for nothing.
 - **Genetic studies** are screened by rule, then read by two language models that never see each other's answer; a
   third model decides where they differ. Every gene, variant, number and quote must occur in the source text, or the
   item is dropped.
