@@ -39,13 +39,15 @@
 #           colocalisations, its published regions as looked up
 # Outputs : conditions.tsv (one row per condition), relations.tsv (one row per
 #           piece of evidence), colocalisation.tsv (one row per colocalising pair),
-#           overlap.tsv, fetch_list.tsv (the conditions whose genetics are fetched),
+#           overlap.tsv, shared_funnel.json (what each shared-signal filter left out, by
+#           region), fetch_list.tsv (the conditions whose genetics are fetched),
 #           seed_check.tsv, ontology_log.tsv, not_related.tsv (seed conditions whose
 #           clinical evidence all found no association); for a seed read from PubMed (the
 #           folder of relations.py), its disputed items and counts, passed on to
 #           the curation: relations_review.tsv, relations_reading.json
 # ---------------------------------------------------------------------------
 import argparse
+import json
 import re
 import shutil
 import sys
@@ -237,24 +239,40 @@ def main():
                               None, a.region_min_mac, a.rare_variant_p)
     region_of = {cs: r for r in regions for cs in r['study_locus_ids']}
     own_studies = {s['id'] for s in g['studies']}       # the disease's own GWAS (with its descendants): not a relation
+    # what each filter leaves out, region by region (shared_funnel.json; tidy_graph.py adds its own steps): pairs of
+    # credible sets as Open Targets lists them, then one row per pair and Open Targets entry its study is mapped to
+    funnel = {r['gene']: {'method': 'colocalization' if r['study_locus_ids'] else 'lead-variant overlap' if
+                          r['source'] == 'published' and not r['disease_study_locus_id'] else '',
+                          'listed': 0, 'below': 0, 'not_other_gwas': 0, 'no_entry': 0, 'itself': 0, 'rows': 0,
+                          'joint': 0, 'once': 0} for r in regions}
     co = []
     for s in g['studies']:
         for c in s['credible_sets']:
             r = region_of.get(c['studyLocusId'])
             if r is None:          # a credible set below genome-wide significance names no region
                 continue
+            f = funnel[r['gene']]
             locus = (c['variant'] or {}).get('rsIds', [''])[0] or c['variant']['id']
             l2g = ((c.get('l2GPredictions') or {}).get('rows') or [{}])[0].get('target', {}).get('approvedSymbol', '')
             for x in c.get('colocalisation') or []:
+                f['listed'] += 1
                 if not ((x.get('clpp') or 0) >= a.clpp_min or (x.get('h4') or 0) >= a.h4_min):
+                    f['below'] += 1
                     continue
                 o = x['otherStudyLocus']
                 st = o['study']
-                if st['id'] in own_studies:
+                # another study's GWAS: not the disease's own, not a molecular QTL study (no disease to relate)
+                if st['id'] in own_studies or (x.get('rightStudyType') or 'gwas') != 'gwas':
+                    f['not_other_gwas'] += 1
                     continue
-                for d in st.get('diseases') or [{'id': '', 'name': st.get('traitFromSource') or ''}]:
+                if not st.get('diseases'):
+                    f['no_entry'] += 1
+                    continue
+                for d in st['diseases']:
                     if d['id'] in OWN:
+                        f['itself'] += 1
                         continue
+                    f['rows'] += 1
                     co.append({'disease_locus': locus, 'disease_gene': r['gene'], 'l2g_gene': l2g,
                                'disease_study_locus_id': c['studyLocusId'],
                                'node_id': d['id'], 'condition': d['name'], 'study_id': st['id'],
@@ -276,15 +294,24 @@ def main():
     for r in regions:
         if r['source'] != 'published' or r['disease_study_locus_id'] or r['study_locus_ids']:
             continue
+        f = funnel[r['gene']]
         for x in r.get('overlaps') or []:
+            f['listed'] += 1
             if (x.get('pip') or 0) < a.overlap_pip_min:
+                f['below'] += 1
                 continue
             st = x['study']
             if st['id'] in own_studies:
+                f['not_other_gwas'] += 1
                 continue
-            for d in st.get('diseases') or [{'id': '', 'name': st.get('traitFromSource') or ''}]:
+            if not st.get('diseases'):
+                f['no_entry'] += 1
+                continue
+            for d in st['diseases']:
                 if d['id'] in OWN:
+                    f['itself'] += 1
                     continue
+                f['rows'] += 1
                 ov.append({'disease_locus': r['rsid'], 'disease_gene': r['gene'], 'variant_id': r['variant_id'],
                            'node_id': d['id'], 'condition': d['name'], 'study_id': st['id'],
                            'trait': st.get('traitFromSource') or '', 'first_author': st.get('publicationFirstAuthor') or '',
@@ -304,6 +331,8 @@ def main():
     # boolean masks of explicit dtype: an empty table's mask would otherwise select columns, not rows
     jc, jo = co.trait.map(is_joint).astype(bool), ov.trait.map(is_joint).astype(bool)
     n_joint = int(jc.sum() + jo.sum())
+    for gname, n in pd.concat([co[jc].disease_gene, ov[jo].disease_gene]).value_counts().items():
+        funnel[gname]['joint'] += int(n)
     co, ov = co[~jc].copy(), ov[~jo].copy()
     # a study counts once: one that Open Targets maps to a condition related by clinical or ontology evidence and
     # to other conditions supports that condition only (a PE study also mapped to 'pulmonary infarction')
@@ -316,6 +345,8 @@ def main():
         by_study = node.groupby(df.study_id).agg(set)
         keep = pd.Series([n in related or not (by_study[s] & related) for s, n in zip(df.study_id, node)],
                          index=df.index, dtype=bool)
+        for gname, n in df[~keep].disease_gene.value_counts().items():
+            funnel[gname]['once'] += int(n)
         return df[keep].copy(), int((~keep).sum())
     co, n_once_co = once(co)
     ov, n_once_ov = once(ov)
@@ -407,6 +438,7 @@ def main():
     write_tsv(R, out / 'relations.tsv')
     write_tsv(co, out / 'colocalisation.tsv')
     write_tsv(ov, out / 'overlap.tsv')
+    (out / 'shared_funnel.json').write_text(json.dumps(funnel, indent=1))
     write_tsv(chk, out / 'seed_check.tsv')
     write_tsv(pd.DataFrame(not_related, columns=['node_id', 'name', 'items', 'reason']), out / 'not_related.tsv')
     write_tsv(pd.DataFrame(olog, columns=['node_id', 'name', 'rule', 'decision']), out / 'ontology_log.tsv')

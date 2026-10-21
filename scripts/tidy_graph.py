@@ -221,6 +221,7 @@ def main():
         cg = {**cg, 'studies': [s for s in cg['studies'] if s not in gone_core]}
     gone_sets = {c['studyLocusId'] for s in gone_core for c in s['credible_sets']}
     n_co, n_ov = len(co), len(ov)
+    by_region_in = pd.concat([co.disease_gene, ov.disease_gene]).value_counts()
     co = co[~co.pmid.isin(excluded) & ~co.disease_study_locus_id.isin(gone_sets)].copy()
     ov = ov[~ov.pmid.isin(excluded)].copy()
     if len(co) < n_co or len(ov) < n_ov or gone_core:
@@ -264,6 +265,18 @@ def main():
         log(f'not related (no evidence that relates them): {", ".join(unrelated.name)}')
     cond, rel = cond[cond.node_id.isin(kept)].copy(), rel[rel.node_id.isin(kept)].copy()
     relating = relating[rel.index]
+    # the shared-signal funnel, region by region: resolve.py's steps (shared_funnel.json), then the rows the curation,
+    # the two-region minimum and the broad classes leave out, and what is kept (rows, conditions)
+    funnel = load_json(R / 'shared_funnel.json') if (R / 'shared_funnel.json').exists() else {}
+    both = pd.concat([co.assign(node=co.node_id.map(lambda n: alias.get(n, n)))[['disease_gene', 'node']],
+                      ov.assign(node=ov.node_id.map(lambda n: alias.get(n, n)))[['disease_gene', 'node']]])
+    after_curation = both.disease_gene.value_counts()
+    for gname, f in funnel.items():
+        rows = both[both.disease_gene == gname]
+        f.update(curation=int(by_region_in.get(gname, 0) - after_curation.get(gname, 0)),
+                 too_few=int(rows.node.isin(too_few).sum()), broad=int(rows.node.isin(too_broad).sum()),
+                 kept=int(rows.node.isin(kept).sum()), conditions=int(rows[rows.node.isin(kept)].node.nunique()))
+        f['unrelated'] = int(len(rows) - f['too_few'] - f['broad'] - f['kept'])
     co = co[co.node_id.map(lambda n: alias.get(n, n)).isin(kept)].copy()
     ov = ov[ov.node_id.map(lambda n: alias.get(n, n)).isin(kept)].copy()
     # the sources, category and counts of each condition, from the relations that relate it (after the curation)
@@ -495,6 +508,8 @@ def main():
                                                'names': names_tf},
              # broad classes (more ontology descendants than the limit) related only by shared signals: left out
              'shared_signal_broad_classes': {'n': len(too_broad), 'names': names_tb},
+             # what each shared-signal filter left out, region by region (resolve.py's steps and this script's)
+             'shared_funnel': [{'region': gname, **f} for gname, f in funnel.items()],
              'fetched_at': meta['fetched_at'],
              'core': {'id': CORE, 'name': core_name, 'short': P.short, 'key': P.key},
              'conditions': len(cond),

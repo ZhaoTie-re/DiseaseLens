@@ -420,6 +420,18 @@ do.
 - **Ontology.** A parent with more than 30 children (`MaxOntologyChildren`) is too broad a class to give neighbors;
   it and its children are left out and logged (HPAH: "hereditary disease", 1,070 children).
 - **Colocalization** is computed by Open Targets and selected here: the pipeline runs no colocalization itself.
+  Open Targets gives, for each pair of credible sets, eCAVIAR CLPP (the probability that one causal variant drives
+  both) and coloc H4. The steps, in order: (1) the pairs Open Targets lists for each credible set of a region of the
+  disease, and, for a published region without such a credible set, the GWAS credible sets that hold its lead
+  variant; (2) CLPP ≥ 0.01 or H4 ≥ 0.8, or the lead's PIP ≥ 0.1; (3) the other credible set comes from a GWAS of
+  another study (not the disease's own, not a molecular QTL study, one with a disease or trait entry); (4) a pair
+  relates each Open Targets entry its study is mapped to, the disease itself left out; (5) joint-trait studies left
+  out; (6) a study counts once; (7) studies of publications the curation leaves out are left out; (8) near-duplicate
+  traits merged; (9) a trait related only by shared signals needs two regions; (10) a broad class related only by
+  shared signals leaves. What each step leaves out is counted region by region (`01.conditions/shared_funnel.json`,
+  `04.tables/tidy.json`) and shown on the viewer's "How it is built" page. CTEPH, ABO region: 51 pairs listed, all
+  above the thresholds; 4 rows of joint-trait studies, 1 counted once and the traits sharing ABO alone left out; 11
+  related conditions keep its signal.
 - **Lead-variant overlap.** If the lead were the causal variant, the CLPP of the pair would equal its PIP; without a
   credible set of the disease, that side is not fine-mapped, hence weaker.
 - **What a GWAS study can tell.** A study that tests several traits jointly (a multi-trait or pleiotropy analysis,

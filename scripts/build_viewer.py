@@ -192,6 +192,8 @@ def model_use(P, T, Q, summ):
             # the traits a shared signal alone would relate, left out: too few regions shared, a broad class
             'shared_left_out': {'too_few': tidy.get('shared_signal_too_few_regions') or {},
                                 'broad': tidy.get('shared_signal_broad_classes') or {}},
+            # what each shared-signal filter left out, region by region (resolve.py, tidy_graph.py)
+            'shared_funnel': tidy.get('shared_funnel') or [],
             'summaries': {'n': len(summ), 'shown': int(summ.grounded.eq('True').sum()),
                           'withheld': int((~made.grounded.eq('True')).sum()), 'not_generated': len(summ) - len(made),
                           'checked': int(summ.check.ne('').sum()) if 'check' in summ else 0},
@@ -479,6 +481,7 @@ table.mx tbody tr:hover td.mx-name { background: var(--hi); }
 .doc-k { font-size: 11.5px; font-weight: 700; color: var(--ink2); text-transform: uppercase; letter-spacing: .04em;
   margin: 14px 0 4px; }
 .doc-list { padding-left: 20px; margin: 6px 0 4px; font-size: 13px; } .doc-list li { margin: 4px 0; }
+table.funnel th, table.funnel td { white-space: nowrap; } table.funnel th { white-space: normal; vertical-align: bottom; }
 table.rules td.rule-k { width: 24%; font-weight: 600; } table.rules td.rule-v { width: 22%; }
 table.rules td { vertical-align: top; } .rule-refs { margin-top: 3px; font-size: 12px; color: var(--ink2); }
 table.proc td { vertical-align: top; } table.proc td.proc-no { width: 22px; color: var(--ink2); }
@@ -1657,6 +1660,74 @@ const here = (...kids) => h('div', {class: 'here'}, h('b', {}, S + ': '), ...kid
 const count = (xs, f) => xs.reduce((m, x) => { const k = f(x); m[k] = (m[k] || 0) + 1; return m; }, {});
 const tallyText = (m, order) => (order || Object.keys(m)).filter(k => m[k]).map(k => `${k} ${m[k]}`).join('; ');
 
+// the shared GWAS signals, step by step (section 4.3): each step with what it leaves out in this snapshot, the same
+// steps region by region (shared_funnel of tidy.json), and what the counts shown with a shared signal mean
+function sharedSteps() {
+  const P = D.params, F = D.llm.shared_funnel || [], n = v => (v ?? 0).toLocaleString(), pv = (k, d) => P[k] ?? d;
+  const sum = (k, f = () => true) => F.filter(f).reduce((t, r) => t + (r[k] || 0), 0);
+  const coloc = r => r.method === 'colocalization', overl = r => r.method === 'lead-variant overlap';
+  const nCo = F.filter(coloc).length, nOv = F.filter(overl).length;
+  const kept = F.reduce((t, r) => t + (r.kept || 0), 0);
+  const out = [procTable([
+    ['1', 'Colocalizations', ['ot'], `For each credible set of a ${S} GWAS region in Open Targets, every credible set ` +
+      'of another study that Open Targets colocalizes with it, with two measures for each pair: eCAVIAR CLPP (the ' +
+      'probability that one causal variant drives both) and coloc H4 (the posterior that both share one causal ' +
+      'variant).', F.length ? `${n(sum('listed', coloc))} pairs in ${nCo} region${nCo === 1 ? '' : 's'}` : ''],
+    ['2', 'Lead-variant overlaps', ['ot', 'rule'], `For a published region without a ${S} credible set in Open ` +
+      'Targets (colocalization needs one): every GWAS credible set of another study that holds the region\'s ' +
+      'published lead variant, with the lead\'s posterior inclusion probability (PIP) in it. Weaker: the ' +
+      `${S} side is not fine-mapped.`, F.length ? `${n(sum('listed', overl))} credible sets in ${nOv} ` +
+      `region${nOv === 1 ? '' : 's'}` : ''],
+    ['3', 'Thresholds', ['rule'], `A pair is kept with CLPP ≥ ${pv('ClppMin', 0.01)} or H4 ≥ ${pv('H4Min', 0.8)}; an ` +
+      `overlap with the lead's PIP ≥ ${pv('OverlapPipMin', 0.1)}.`, F.length ? `${n(sum('below'))} left out` : ''],
+    ['4', 'Another study\'s GWAS', ['rule'], `The other credible set comes from a GWAS of another study: ${S}'s own ` +
+      'GWAS, molecular QTL studies and a study with no disease or trait entry in Open Targets relate nothing.',
+      F.length ? `${n(sum('not_other_gwas') + sum('no_entry'))} left out` : ''],
+    ['5', 'Mapping', ['ot', 'rule'], 'A pair relates each Open Targets entry (a disease or a trait) its study is ' +
+      `mapped to, one row per pair and entry; ${S} itself and its subtypes are left out.`,
+      F.length ? `${n(sum('rows'))} rows` + (sum('itself') ? `; ${n(sum('itself'))} of ${S} itself` : '') : ''],
+    ['6', 'Joint-trait studies', ['rule'], 'A study of several traits jointly (a multi-trait or pleiotropy analysis) ' +
+      'gives no trait\'s own signal.', F.length ? `${n(sum('joint'))} rows left out` : ''],
+    ['7', 'A study counts once', ['rule'], 'A study mapped both to a condition related by clinical or ontology ' +
+      'evidence and to other entries supports that condition only.', F.length ? `${n(sum('once'))} rows left out` : ''],
+    ['8', 'Curation', ['pubmed', 'rule'], 'A study whose publication the curation leaves out (retracted, conference ' +
+      'material) shares no signal.', F.length ? `${n(sum('curation'))} rows left out` : ''],
+    ['9', 'Near-duplicate traits', ['rule'], 'Traits related only by shared signals whose GWAS studies nearly ' +
+      `coincide (Jaccard ≥ ${pv('DuplicateStudyShare', 0.8)}) are one trait, named by the one with more studies.`, ''],
+    ['10', 'Two regions for a shared signal alone', ['rule'], `A trait related only by shared signals needs at least ` +
+      `${pv('MinSharedRegions', 2)} ${S} regions: one region, often a pleiotropic one, does not relate a trait by ` +
+      'itself. The signals of a condition related by clinical or ontology evidence count however many regions they ' +
+      'share.', F.length ? `${n(sum('too_few'))} rows left out` : ''],
+    ['11', 'Broad classes', ['rule'], `A class with more than ${pv('MaxDescendants', 100)} subtypes in the ontology, ` +
+      'related only by shared signals, leaves; each subtype that shares a signal is listed on its own (4.5).',
+      F.length ? `${n(sum('broad'))} rows left out` : ''],
+    ['12', 'Kept', ['rule'], 'Each condition that keeps a row shares that region; its rows are its GWAS signals there.',
+      F.length ? `${n(kept)} rows` : '']])];
+  if (F.length) {
+    const cols = [['Region', r => r.region.replace(/ region$/, '')], ['Method', r => r.method || '—'],
+      ['Listed', r => r.listed], ['Below threshold', r => r.below],
+      ['Not another study\'s GWAS', r => (r.not_other_gwas || 0) + (r.no_entry || 0)], ['Rows', r => r.rows],
+      ['Joint-trait', r => r.joint], ['Counted once', r => r.once], ['Curation', r => r.curation],
+      [`Fewer than ${pv('MinSharedRegions', 2)} regions`, r => r.too_few], ['Broad class', r => r.broad],
+      ['Kept rows', r => r.kept], ['Conditions', r => r.conditions]];
+    out.push(h('div', {class: 'doc-k'}, 'Region by region'), ...hscroll(h('table', {class: 'plain funnel'},
+      h('thead', {}, h('tr', {}, cols.map(([c], i) => h('th', {class: 'nosort' + (i > 1 ? ' num' : '')}, c)))),
+      h('tbody', {}, F.map(r => h('tr', {}, cols.map(([, f], i) => h('td', {class: i > 1 ? 'num' : ''},
+        i > 1 ? n(f(r) || 0) : f(r))))))), 'columns'),
+      h('p', {class: 'note'}, '“Listed” counts pairs of credible sets (colocalization) or credible sets holding the ' +
+        'lead variant (overlap), as Open Targets lists them; from “Rows” on, one row per pair and Open Targets entry ' +
+        'its study is mapped to. “Conditions”: the related conditions that keep a row in the region.'));
+  }
+  out.push(h('div', {class: 'doc-k'}, 'The counts shown with a shared signal'), h('ul', {class: 'doc-list'},
+    h('li', {}, h('b', {}, 'Method: '), 'colocalization when any pair of the condition colocalizes with the region, ' +
+      'else lead-variant overlap.'),
+    h('li', {}, h('b', {}, 'GWAS signals: '), 'the GWAS studies of the condition that share the region; several ' +
+      'credible sets of one study count once.'),
+    h('li', {}, h('b', {}, 'Best: '), 'the highest CLPP among its colocalizing pairs, or the highest PIP of the lead ' +
+      'variant among its overlaps.')));
+  return out;
+}
+
 // the build page: a methods document in numbered sections that follow the build, each in one form (its answer in
 // short; what happens, step by step, by whom; its rules with their values and basis, from the choices registry; this
 // snapshot's counts), with a contents column; every rule of the registry is in one section, and any other in the last
@@ -1822,11 +1893,11 @@ function buildPage(sel) {
       'where the readers differ.', parts.clinical,
       rules('condition_mapping', 'joined_names', 'consolidation', 'verification', 'contrary', 'direction',
         'relation_design')),
-    sub('4.3', 'shared', 'Shared GWAS signals', `A related condition shares a region of ${S} when one of its GWAS ` +
-      'credible sets colocalizes with the region\'s, or holds its lead variant where the region has no credible set ' +
-      `of ${S}. These are computed by Open Targets and selected here by rules.`,
-      rules('clpp', 'h4', 'overlap', 'loci_grading', 'min_shared_regions', 'joint_traits', 'study_once',
-        'duplicate_traits'),
+    sub('4.3', 'shared', 'Shared GWAS signals', `A related condition shares a region of ${S} when a GWAS of another ` +
+      `study has a signal there that is the same as ${S}'s: Open Targets computes the colocalizations of the credible ` +
+      `sets, and rules select them, step by step, before they relate a condition.`,
+      sharedSteps(), rules('clpp', 'h4', 'overlap', 'loci_grading', 'min_shared_regions', 'joint_traits',
+        'study_once', 'duplicate_traits'),
       here(`${conds.filter(c => (D.cond_evidence[c.id] || {}).regions && Object.keys(D.cond_evidence[c.id].regions)
         .length).length} related conditions share at least one region.`)),
     sub('4.4', 'categories', 'Categories', 'A condition takes the most frequent category of its clinical evidence; ' +
